@@ -1,4 +1,4 @@
-# Stage - Stage is a simple To-Do list manager
+# Action! is a simple To-Do list manager
 
 ## Usage
 

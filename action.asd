@@ -1,28 +1,28 @@
 #|
-  This file is a part of stage project.
+  This file is a part of Action! project.
   Copyright (c) 2017 Sacha El Masry
 |#
 
 #|
-  Stage is a simple To-Do list manager
+  Action! is a simple To-Do list manager
 
   Author: Sacha El Masry
 |#
 
 (in-package :cl-user)
-(defpackage stage-asd
+(defpackage action-asd
   (:use :cl :asdf))
-(in-package :stage-asd)
+(in-package :action-asd)
 
-(defsystem stage
+(defsystem action
   :version "0.1"
   :author "Sacha El Masry"
   :license "BSD"
   :depends-on ()
   :components ((:module "src"
                 :components
-                ((:file "stage"))))
-  :description "Stage is a simple To-Do list manager"
+                ((:file "action"))))
+  :description "Action! is a simple To-Do list manager"
   :long-description
   #.(with-open-file (stream (merge-pathnames
                              #p"README.markdown"
@@ -35,4 +35,4 @@
                                :fill-pointer t)))
           (setf (fill-pointer seq) (read-sequence seq stream))
           seq)))
-  :in-order-to ((test-op (test-op stage-test))))
+  :in-order-to ((test-op (test-op action-test))))

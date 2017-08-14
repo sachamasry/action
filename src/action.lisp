@@ -1,6 +1,6 @@
 (in-package :cl-user)
-(defpackage stage
+(defpackage action
   (:use :cl))
-(in-package :stage)
+(in-package :action)
 
 ;; blah blah blah.
