@@ -18,7 +18,10 @@
   :version "0.1"
   :author "Sacha El Masry"
   :license "BSD"
-  :depends-on ()
+  :depends-on (:local-time
+               :uuid 
+               :cl-ppcre
+               :ratify)
   :components ((:module "src"
                 :components
                 ((:file "action"))))
