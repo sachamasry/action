@@ -18,7 +18,8 @@
   :version "0.1"
   :author "Sacha El Masry"
   :license "BSD"
-  :depends-on (:local-time
+  :depends-on (:alexandria
+               :local-time
                :uuid 
                :cl-ppcre
                :ratify)
