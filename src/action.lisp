@@ -39,12 +39,31 @@
            :created-on timestamp :modified-on timestamp
            :description description :uuid (make-v4-uuid)))))
 
-(defun list-actions (&key (action-list *action-list*)
+(defun action-list (&key (action-list *action-list*)
                        (completed-actions-list *completed-actions-list*)
                        list-completed)
   (if list-completed
       (get-completed-actions-list)
       (get-action-list)))
+
+(defun shorten-id (id digits)
+  (subseq (format nil "~s" id) 0 digits))
+
+(defun list-actions (&key (action-list *action-list*)
+                       (completed-actions-list *completed-actions-list*)
+                       list-completed)
+  (flet ((format-action-list ()
+           (mapcar
+            #'(lambda (task) (list (shorten-id (getf task :uuid) 2)
+                                   (getf task :priority)
+                                   (getf task :time-estimated)
+                                   (getf task :description)))
+            action-list)))
+    (progn
+      (format t "ID Priority Time Description~%")
+      (format t "-- -------- ---- -----------~%")
+      (format t "~:{~&~2A ~8A ~4D ~A~}"
+             (format-action-list)))))
 
 (defun delete-action ()
   ())
