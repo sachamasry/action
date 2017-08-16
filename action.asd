@@ -19,13 +19,16 @@
   :author "Sacha El Masry"
   :license "BSD"
   :depends-on (:alexandria
+               :cl-strings
                :local-time
                :uuid 
                :cl-ppcre
                :ratify)
   :components ((:module "src"
                 :components
-                ((:file "action"))))
+                        ((:file "filesystem-interface")
+                         (:file "string-manipulation")
+                         (:file "action"))))
   :description "Action! is a simple To-Do list manager"
   :long-description
   #.(with-open-file (stream (merge-pathnames
