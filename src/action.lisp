@@ -116,3 +116,17 @@
       (and
        (add-action-to-completed-actions-list matching-action)
        (remove-action id)))))
+
+;; I was considering whether to use YAML for data (activity)
+;; serialization to disk, specifically whether to use the MAP
+;; or DOCUMENT type for each entry
+;;
+;; Either way, if the information originates in a plist, then
+;; the following code (using cl-yaml) works bi-directionally:
+;;
+;; (yaml:emit-to-string (alexandria:plist-hash-table
+;;   (alexandria:hash-table-plist (yaml:parse "{ a: 1, b: 2 }"))))
+;;
+;; In conclusion, I now believe that this is a premature optimisation
+;; and an unnecessary complication and burden; it's much easier
+;; by starting to serialize the native Lisp list to text.
