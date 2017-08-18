@@ -7,6 +7,9 @@
    :make-v4-uuid)
   (:import-from :alexandria
                 :when-let)
+  (:import-from :action/persistence
+                #:write-sexp-to-file
+                #:read-sexp-from-file)
   (:export
    :add-action
    :cli-list-actions

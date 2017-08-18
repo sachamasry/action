@@ -28,6 +28,7 @@
                 :components
                         ((:file "filesystem-interface")
                          (:file "string-manipulation")
+                         (:file "persistence")
                          (:file "action"))))
   :description "Action! is a simple To-Do list manager"
   :long-description
