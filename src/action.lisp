@@ -21,18 +21,18 @@
 ;; Action! will store its data in an XDG compliant data directory,
 ;; $HOME/.config/action/
 ;; ensure the directory exists?
-(defconstant +action-data-directory+ 
+(defparameter +action-data-directory+ 
   (ensure-directories-exist
    (action/filesystem-interface:construct-directory 
     (uiop/configuration:xdg-data-home) "action")))
 
-(defconstant +actions-data-file+
+(defparameter +actions-data-file+
   (merge-pathnames +action-data-directory+ "actions.data"))
 
-(defconstant +completed-actions-data-file+
+(defparameter +completed-actions-data-file+
   (merge-pathnames +action-data-directory+ "completed.data"))
 
-(defconstant +activity-log+ 
+(defparameter +activity-log+ 
   (merge-pathnames +action-data-directory+ "activity-log.data"))
 
 (defun ensure-file-exists (file)
@@ -49,7 +49,10 @@
                     +activity-log+)
 
 (defvar *action-list*
-  (action/persistence:read-sexp-from-file +actions-data-file+))
+  (with-open-file (file +actions-data-file+ :direction :input)
+    (with-standard-io-syntax
+      (let ((*read-eval* nil))
+        (setf *action-list* (read file))))))
 
 (defun get-action-list ()
   *action-list*)
