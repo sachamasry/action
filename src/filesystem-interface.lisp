@@ -31,7 +31,8 @@
            #:split-path
            #:construct-destination-directory
            #:construct-file-name
-           #:construct-destination-path))
+           #:construct-destination-path
+           #:get-system-source-directory ))
 (in-package :action/filesystem-interface)
 
 #|
@@ -219,3 +220,9 @@ conditions aren't met."
                        :name (file-name separator name-components)
                        :type file-extension)))
           (file-name separator name-components)))))
+
+
+(defun get-system-source-directory (system)
+  ""
+  (asdf:system-source-directory
+   (asdf/find-system:find-system system)))

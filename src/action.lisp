@@ -18,24 +18,66 @@
    :complete-action))
 (in-package :action)
 
-(defvar *action-list* ())
+;; Action! will store its data in an XDG compliant data directory,
+;; $HOME/.config/action/
+;; ensure the directory exists?
+(defconstant +action-data-directory+ 
+  (ensure-directories-exist
+   (action/filesystem-interface:construct-directory 
+    (uiop/configuration:xdg-data-home) "action")))
 
-(defun set-action-list (new-value)
-  (setf *action-list* new-value))
+(defconstant +actions-data-file+
+  (merge-pathnames +action-data-directory+ "actions.data"))
 
-(defun add-action-to-action-list (action)
-  (push action *action-list*))
+(defconstant +completed-actions-data-file+
+  (merge-pathnames +action-data-directory+ "completed.data"))
+
+(defconstant +activity-log+ 
+  (merge-pathnames +action-data-directory+ "activity-log.data"))
+
+(defun ensure-file-exists (file)
+  (unless (probe-file file)
+    (with-open-file (s file :direction :output)
+      (write-string "" s))))
+
+(defun ensure-files-exist (&rest files)
+  (mapcar #'(lambda (file) (ensure-file-exists file))
+          files))
+
+(ensure-files-exist +actions-data-file+
+                    +completed-actions-data-file+
+                    +activity-log+)
+
+(defvar *action-list*
+  (action/persistence:read-sexp-from-file +actions-data-file+))
 
 (defun get-action-list ()
   *action-list*)
 
-(defvar *completed-actions-list* ())
+(defun set-action-list (new-value)
+  (action/persistence:write-sexp-to-file +actions-data-file+
+                                         (setf *action-list* new-value)))
 
-(defun add-action-to-completed-actions-list (action)
-  (push action *completed-actions-list*))
+(defun add-action-to-action-list (action)
+  (action/persistence:write-sexp-to-file +actions-data-file+
+                                         (push action *action-list*)))
+
+(defvar *completed-actions-list* ())
 
 (defun get-completed-actions-list ()
   *completed-actions-list*)
+
+(defun lazy-load-completed-actions ()
+  (when (null (get-completed-actions-list))
+    (setf *completed-actions-list*
+          (action/persistence:read-sexp-from-file
+           +completed-actions-data-file+))))
+
+(defun add-action-to-completed-actions-list (action)
+  (and
+   (action/persistence:write-sexp-to-file
+    +completed-actions-data-file+ action :exists-action :append)
+   (push action *completed-actions-list*)))
 
 (defun add-action (description &key (priority "") (time-estimated 0)
                                  (action-list *action-list*))
