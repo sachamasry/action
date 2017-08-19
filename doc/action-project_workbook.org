@@ -1,0 +1,64 @@
+#+OPTIONS: ':nil *:t -:t ::t <:t H:3 \n:nil ^:t arch:headline author:t
+#+OPTIONS: broken-links:nil c:nil creator:nil d:(not "LOGBOOK") date:t e:t
+#+OPTIONS: email:nil f:t inline:t num:t p:nil pri:nil prop:nil stat:t tags:t
+#+OPTIONS: tasks:t tex:t timestamp:t title:t toc:t todo:t |:t
+#+TITLE: action-project_workbook
+#+DATE: \today
+#+AUTHOR: Sacha El Masry
+#+LATEX_CLASS: article
+#+LATEX_CLASS_OPTIONS:
+#+LATEX_HEADER:
+#+LATEX_HEADER_EXTRA:
+#+DESCRIPTION:
+#+KEYWORDS:
+#+SUBTITLE:
+#+LATEX_COMPILER: pdflatex
+#+EMAIL: sacha@rojoynegroclub.com
+#+LANGUAGE: en
+#+SELECT_TAGS: export
+#+EXCLUDE_TAGS: noexport
+#+CREATOR: Emacs 25.1.1 (Org mode 9.0.9)
+
+#+BEGIN_abstract
+Action! is an attempt at creating a simple and fast task manager; in simplicity,
+the goal isn't to make it primitive, Action! isn't aimed at being a shopping
+list. Action! is a working tool, implementing something akin to the /cycle
+system/, as described in ``Time Management'' (T. A. Limoncelli, 2006, O'Reilly),
+helping quickly jot down specific next actions, promoting or demoting them
+throughout the day, with the ability to reschedule any action to another date.
+The cycle system is deceptively simple; it is easy enough to use and to put
+tasks into, while still demanding its practitioner thinks carefully through each
+action, apportioning it a priority and a possible time required for completion.
+
+There is an endless number of task managers, why not use any of them? Many task
+managers are either far too simple to be of use in a working environment, or are
+endlessly open-ended, haranguing the user of the system to record an torrent of
+information of increasingly marginal utility, yet requiring time while providing
+the illusion of qualitative, useful work. In this spectrum, Action! will only ever
+require a limited amount of information, while eventually permitting
+customisably more details to be recorded, even though these are either only
+necessary at the project planning and management level, or in a support role. In
+both cases, it is arguable that the bulk of detail belongs firmly in the project
+management or ticketing system, where a task manager's role is to record and
+remind.
+
+On the speed front, quite apart from the sheer amount of detail, many popular
+task managers are very slow to use. Despite recording actually very little
+information, they are slow to start, and take time to record an action and to be
+ready for the entry of the next action. Further, they are either only available
+as an installable desktop program, or mobile or web application. This often
+makes it non-trivial to open the system just to record an action, placing a
+significant cognitive burden on the user, who often may simply choose not to
+record an action but simply remember it. Obviously, no computer-based system can
+ever be completely spontaneous---paper is the ultimate best choice for
+spontaneity---but there are levels of usability. My aim here is to design as
+close to instantaneous system as possible, primarily providing fast usage from
+the command-line interface (CLI). This in no way prevents multiple interfaces
+such as a fast, installable desktop or mobile application, or a web-based one.
+
+Finally, Action! is open; all data files are plain-text files which can be
+opened on any system in existence, read and manipulated by a user as necessary,
+so that there is no proprietary hold over the stored data. All data will be
+recorded, in an append-only fashion, forever providing a log of all activities
+undertaken. 
+#+END_abstract

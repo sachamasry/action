@@ -18,9 +18,13 @@
    :complete-action))
 (in-package :action)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Data persistence
+
 ;; Action! will store its data in an XDG compliant data directory,
 ;; $HOME/.config/action/
-;; ensure the directory exists?
+
+;; Ensure the directory exists, creating if if necessary
 (defparameter +action-data-directory+ 
   (ensure-directories-exist
    (action/filesystem-interface:construct-directory 
@@ -35,6 +39,8 @@
 (defparameter +activity-log+ 
   (merge-pathnames +action-data-directory+ "activity-log.data"))
 
+;; Ensure all required data files exist, creating empty files if
+;; necessary
 (defun ensure-file-exists (file)
   (unless (probe-file file)
     (with-open-file (s file :direction :output)
@@ -48,40 +54,69 @@
                     +completed-actions-data-file+
                     +activity-log+)
 
+;; Create *action-list* variable, holding a list of next actions
+;; Load persisted actions from file upon first definition
 (defvar *action-list*
   (with-open-file (file +actions-data-file+ :direction :input)
     (with-standard-io-syntax
       (let ((*read-eval* nil))
-        (setf *action-list* (read file))))))
+        (setf *action-list* (read file 'NIL 'NIL))))))
 
 (defun get-action-list ()
   *action-list*)
 
+;; Upon every setting of the action list, persist the list to file
 (defun set-action-list (new-value)
   (action/persistence:write-sexp-to-file +actions-data-file+
                                          (setf *action-list* new-value)))
 
 (defun add-action-to-action-list (action)
-  (action/persistence:write-sexp-to-file +actions-data-file+
-                                         (push action *action-list*)))
+  (and
+   (action/persistence:write-sexp-to-file +actions-data-file+
+                                          (push action *action-list*))
+   (append-to-activity-log action "created")))
 
+;; Create *completed-actions-list* variable, holding a list of all
+;; completed actions. DO NOT load the file, as it is of unbounded
+;; length
 (defvar *completed-actions-list* ())
 
 (defun get-completed-actions-list ()
-  *completed-actions-list*)
+  (when (null *completed-actions-list*)
+    (lazy-load-completed-actions)))
 
 (defun lazy-load-completed-actions ()
-  (when (null (get-completed-actions-list))
-    (setf *completed-actions-list*
-          (action/persistence:read-sexp-from-file
-           +completed-actions-data-file+))))
+  (setf *completed-actions-list*
+        (action/persistence:read-sexp-from-file
+         +completed-actions-data-file+)))
 
 (defun add-action-to-completed-actions-list (action)
-  (and
-   (action/persistence:write-sexp-to-file
-    +completed-actions-data-file+ action :exists-action :append)
-   (push action *completed-actions-list*)))
+  (let ((completed-list (get-completed-actions-list))
+        (completed-action (append action
+                                  (list :status "completed"
+                                        :completed-on (get-universal-time)))))
+    (and
+     (action/persistence:write-sexp-to-file
+      +completed-actions-data-file+ completed-action
+      :exists-action :append)
+     (append-to-activity-log completed-action "completed")
+     (push completed-action *completed-actions-list*))))
 
+;; Create *activity-log* variable, holding a list of all
+;; completed actions. DO NOT load the file, as it is of unbounded
+;; length
+(defvar *activity-log* ())
+
+(defun append-to-activity-log (action activity-type)
+  (let ((activity-to-log (list :time (get-universal-time)
+                               :activity activity-type
+                               action)))
+    (action/persistence:write-sexp-to-file
+     +activity-log+ activity-to-log
+     :exists-action :append)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Define main action verbs
 (defun add-action (description &key (priority "") (time-estimated 0)
                                  (action-list *action-list*))
   (let ((timestamp (get-universal-time)))
