@@ -195,7 +195,8 @@
     (progn
       (format-header)
       (format t "~:{~&~2A ~8A ~4D ~A~}"
-              (format-action-list :list-completed list-completed)))))
+              (format-action-list :list-completed list-completed))
+      (terpri))))
 
 (defun get-action-by-id (id &key (action-list *action-list*))
   (when id

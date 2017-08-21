@@ -4,7 +4,9 @@ all: prepare-staging-area compile
 compile:
 	@echo "---> Starting to compile"
 	cd /tmp/act && \
-	CC=gcc sbcl --load bundle.lisp --script action-clon.lisp
+	CC=gcc sbcl --script action-clon.lisp
+
+build: compile
 
 install:
 	@echo "===> Installing binary"
