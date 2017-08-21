@@ -14,6 +14,8 @@
                 #:write-sexp-to-file
                 #:read-sexp-from-file)
   (:export
+   #:system-version
+
    #:add-action
    #:cli-list-actions
    #:delete-action
@@ -23,6 +25,13 @@
    #:complete-action
    #:log-action))
 (in-package :action)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Miscellaneous utilities
+(defun system-version (system-designator)
+  (let ((system (asdf:find-system system-designator nil)))
+    (when (and system (slot-boundp system 'asdf:version))
+      (asdf:component-version system))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Data persistence

@@ -22,14 +22,16 @@
                :cl-strings
                :local-time
                :uuid
-               :cl-ppcre
-               :ratify)
+               ;:cl-ppcre                ; for regular expression editing
+               ;:ratify                  ; for specialised input parsing
+                                        ; and verification
+               )
   :components ((:module "src"
                 :components
-                        ((:file "filesystem-interface")
-                         (:file "string-manipulation")
-                         (:file "persistence")
-                         (:file "action"))))
+                ((:file "filesystem-interface")
+                                        ;(:file "string-manipulation")
+                 (:file "persistence")
+                 (:file "action"))))
   :description "Action! is a simple To-Do list manager"
   :long-description
   #.(with-open-file (stream (merge-pathnames
