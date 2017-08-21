@@ -1,5 +1,5 @@
 all: prepare-staging-area compile
-	@echo "===> Building system"
+	@echo "===> System built"
 
 compile:
 	@echo "---> Starting to compile"
@@ -8,10 +8,14 @@ compile:
 
 install:
 	@echo "===> Installing binary"
-	doas cp act /usr/local/bin 
+	doas cp /tmp/act/act /usr/local/bin 
+
+uninstall:
+	@echo "===> Uninstalling binary"
+	doas rm /usr/local/bin/act
 
 prepare-staging-area: clean bundle copy-system
-	@echo "===> Preparing build staging area"
+	@echo "===> Prepared build staging area"
 
 bundle:
 	@echo "---> Bundling system dependencies"
@@ -25,4 +29,3 @@ copy-system:
 clean:
 	@echo "---> Cleaning target"
 	rm -rf /tmp/act 
-
