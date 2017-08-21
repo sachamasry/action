@@ -14,11 +14,14 @@
                 #:write-sexp-to-file
                 #:read-sexp-from-file)
   (:export
-   :add-action
-   :cli-list-actions
-   :delete-action
-   :edit-action
-   :complete-action))
+   #:add-action
+   #:cli-list-actions
+   #:delete-action
+   #:edit-action
+   #:prepend-to-action
+   #:append-to-action
+   #:complete-action
+   #:log-action))
 (in-package :action)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -216,24 +219,54 @@
                                  :old-action matching-action)
          (remove-action id))))))
 
-(defun edit-action (id description &key priority time-estimated)
+(defun edit-action (id description &key merge-with-description
+                                     priority time-estimated)
   (when id
     (when-let ((matching-action (get-action-by-id id)))
-      (let ((updated-action matching-action))
+      (let ((updated-action (copy-list matching-action)))
         (when (not (zerop (length description)))
-          (setf (getf updated-action :description) description))
+          (cond ((eq merge-with-description :prepend)
+                 (setf (getf updated-action :description)
+                       (concatenate 'string
+                                    description " "
+                                    (getf updated-action :description))))
+                ((eq merge-with-description :append)
+                 (setf (getf updated-action :description)
+                       (concatenate 'string
+                                    (getf updated-action :description)
+                                    " " description)))
+                (t (setf (getf updated-action :description) description))))
         (when priority
           (setf (getf updated-action :priority) priority))
         (when time-estimated
           (setf (getf updated-action :time-estimated) time-estimated))
-        (append updated-action
-                (list :status "modified"
-                      :modified-on
-                      (format-timestring 'NIL (now))))
+        (if (getf updated-action :modified-on)
+            (setf (getf updated-action :modified-on)
+                  (format-timestring 'NIL (now)))
+            (setf updated-action
+                  (append updated-action
+                          (list :status "modified"
+                                :modified-on
+                                (format-timestring 'NIL (now))))))
         (and
-         (append-to-activity-log updated-action "delete action"
+         (append-to-activity-log updated-action "update action"
                                  :old-action matching-action)
-         )))))
+         (set-action-list
+          (mapcar #'(lambda (action) (if 
+                                      (eq (get-action-by-id id) action)
+                                      updated-action
+                                      action))
+                  (get-action-list))))))))
+
+(defun prepend-to-action (id text)
+  (when (and id
+             (plusp (length text)))
+    (edit-action id text :merge-with-description :prepend)))
+
+(defun append-to-action (id text)
+  (when (and id
+             (plusp (length text)))
+    (edit-action id text :merge-with-description :append)))
 
 (defun complete-action (id)
   (when id
@@ -241,6 +274,27 @@
       (and
        (add-action-to-completed-actions-list matching-action)
        (remove-action id)))))
+
+(defun log-action (description &key (priority "") (time-estimated 0))
+  "Log action which is already completed, without creating it first,
+then completing it. The purpose is to keep a log of actions undertaken
+and completed, even if some of them weren't managed from within Action!"
+  (progn
+    (lazy-load-completed-actions)
+    (let* ((timestamp (format-timestring 'NIL (now)))
+           (completed-action
+             (list :id (make-v4-uuid) :priority priority
+                   :time-estimated time-estimated :description description 
+                   :created-on timestamp
+                   :status "logged completed"
+                   :logged-completed-on timestamp)))
+      (and
+       (append-to-activity-log completed-action "log action")
+       (action/persistence:write-sexp-to-file
+        +completed-actions-data-file+ completed-action
+        :exists-action :append)
+       (push completed-action *completed-actions-list*)
+       t))))
 
 ;; I was considering whether to use YAML for data (activity)
 ;; serialization to disk, specifically whether to use the MAP
