@@ -2,18 +2,21 @@
 (defpackage action
   (:nicknames :act :ac)
   (:use :cl)
+  (:import-from :local-time
+                #:now
+                #:format-timestring)
   (:import-from :uuid
-                :uuid=
+                #:uuid=
    :make-v4-uuid)
   (:import-from :alexandria
-                :when-let)
+                #:when-let)
   (:import-from :action/persistence
                 #:write-sexp-to-file
                 #:read-sexp-from-file)
   (:export
    :add-action
    :cli-list-actions
-   :remove-action
+   :delete-action
    :edit-action
    :complete-action))
 (in-package :action)
@@ -72,9 +75,10 @@
 
 (defun add-action-to-action-list (action)
   (and
+   (append-to-activity-log action "create new action")
    (action/persistence:write-sexp-to-file +actions-data-file+
-                                          (push action *action-list*))
-   (append-to-activity-log action "created")))
+                                          (set-action-list
+                                           (cons action (get-action-list))))))
 
 ;; Create *completed-actions-list* variable, holding a list of all
 ;; completed actions. DO NOT load the file, as it is of unbounded
@@ -83,7 +87,8 @@
 
 (defun get-completed-actions-list ()
   (when (null *completed-actions-list*)
-    (lazy-load-completed-actions)))
+    (lazy-load-completed-actions))
+  *completed-actions-list*)
 
 (defun lazy-load-completed-actions ()
   (setf *completed-actions-list*
@@ -91,39 +96,49 @@
          +completed-actions-data-file+)))
 
 (defun add-action-to-completed-actions-list (action)
-  (let ((completed-list (get-completed-actions-list))
-        (completed-action (append action
-                                  (list :status "completed"
-                                        :completed-on (get-universal-time)))))
-    (and
-     (action/persistence:write-sexp-to-file
-      +completed-actions-data-file+ completed-action
-      :exists-action :append)
-     (append-to-activity-log completed-action "completed")
-     (push completed-action *completed-actions-list*))))
+  (progn
+    (lazy-load-completed-actions)
+    (let ((completed-action (append action
+                                    (list :status "completed"
+                                          :completed-on
+                                          (format-timestring 'NIL (now))))))
+      (and
+       (append-to-activity-log completed-action "completed action"
+                               :old-action action)
+       (action/persistence:write-sexp-to-file
+        +completed-actions-data-file+ completed-action
+        :exists-action :append)
+       (push completed-action *completed-actions-list*)
+       t))))
 
 ;; Create *activity-log* variable, holding a list of all
 ;; completed actions. DO NOT load the file, as it is of unbounded
 ;; length
 (defvar *activity-log* ())
 
-(defun append-to-activity-log (action activity-type)
-  (let ((activity-to-log (list :time (get-universal-time)
-                               :activity activity-type
-                               action)))
+(defun append-to-activity-log (action activity-type &key old-action)
+  (let ((activity-to-log
+          (cond (old-action (list :time (format-timestring 'NIL (now))
+                                  :action-id (getf action :id)
+                                  :activity activity-type
+                                  :from old-action
+                                  :to action))
+                (t (list :time (format-timestring 'NIL (now))
+                         :action-id (getf action :id)
+                         :activity activity-type
+                         action)))))
     (action/persistence:write-sexp-to-file
      +activity-log+ activity-to-log
      :exists-action :append)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Define main action verbs
-(defun add-action (description &key (priority "") (time-estimated 0)
-                                 (action-list *action-list*))
-  (let ((timestamp (get-universal-time)))
+(defun add-action (description &key (priority "") (time-estimated 0))
+  (let ((timestamp (format-timestring 'NIL (now))))
     (add-action-to-action-list
-     (list :priority priority :time-estimated time-estimated
-           :created-on timestamp :modified-on timestamp
-           :description description :uuid (make-v4-uuid)))))
+     (list :id (make-v4-uuid) :priority priority
+           :time-estimated time-estimated :description description 
+           :created-on timestamp)))) 
 
 (defun action-list (&key (action-list *action-list*)
                        (completed-actions-list *completed-actions-list*)
@@ -135,7 +150,7 @@
 (defun shorten-id (id digits)
   (subseq (format nil "~s" id) 0 digits))
 
-(defun get-uuid-from-short-id (short-id &key (action-list *action-list*)
+(defun get-id-from-fragment (short-id &key (action-list *action-list*)
                                       (short-id-length 2))
   (when (and short-id
              (or (stringp short-id)
@@ -146,9 +161,9 @@
        #'(lambda (i) (string= (car i) short-id))
        (mapcar #'(lambda (action) (list (subseq
                                        (format nil "~A"
-                                               (getf action :uuid))
+                                               (getf action :id))
                                        0 short-id-length)
-                                      (getf action :uuid)))
+                                      (getf action :id)))
                action-list))))))
 
 (defun cli-list-actions (&key (action-list *action-list*)
@@ -159,23 +174,24 @@
            (format t "-- -------- ---- -----------~%"))
          (format-action-list (&key list-completed)
            (mapcar
-            #'(lambda (action) (list (shorten-id (getf action :uuid) 2)
+            #'(lambda (action) (list (shorten-id (getf action :id) 2)
                                    (getf action :priority)
                                    (getf action :time-estimated)
                                    (getf action :description)))
-            (if list-completed completed-actions-list action-list))))
+            (if list-completed (get-completed-actions-list)
+                (get-action-list)))))
     (progn
       (format-header)
       (format t "~:{~&~2A ~8A ~4D ~A~}"
-             (format-action-list :list-completed list-completed)))))
+              (format-action-list :list-completed list-completed)))))
 
 (defun get-action-by-id (id &key (action-list *action-list*))
   (when id
-    (when-let ((expanded-uuid (get-uuid-from-short-id id)))
+    (when-let ((expanded-id (get-id-from-fragment id)))
       (find-if
-       #'(lambda (action) (uuid:uuid=
-                         expanded-uuid
-                         (getf action :uuid)))
+       #'(lambda (action) (uuid=
+                           expanded-id
+                           (getf action :id)))
      action-list))))
 
 (defun remove-action (id &key (action-list *action-list*))
@@ -186,14 +202,40 @@
         #'(lambda (action) (eq action matching-action))
         action-list)))))
 
-(defun delete-action ()
-  ())
+(defun delete-action (id &key (reason ""))
+  (when id
+    (when-let ((matching-action (get-action-by-id id)))
+      (let ((deleted-action
+              (append matching-action
+                      (list :status "deleted"
+                            :reason reason
+                            :deleted-on
+                            (format-timestring 'NIL (now))))))
+        (and
+         (append-to-activity-log deleted-action "delete action"
+                                 :old-action matching-action)
+         (remove-action id))))))
 
-(defun edit-action ()
-  ())
+(defun edit-action (id description &key priority time-estimated)
+  (when id
+    (when-let ((matching-action (get-action-by-id id)))
+      (let ((updated-action matching-action))
+        (when (not (zerop (length description)))
+          (setf (getf updated-action :description) description))
+        (when priority
+          (setf (getf updated-action :priority) priority))
+        (when time-estimated
+          (setf (getf updated-action :time-estimated) time-estimated))
+        (append updated-action
+                (list :status "modified"
+                      :modified-on
+                      (format-timestring 'NIL (now))))
+        (and
+         (append-to-activity-log updated-action "delete action"
+                                 :old-action matching-action)
+         )))))
 
-(defun complete-action (id &key (action-list *action-list*)
-                             (completed-actions-list *completed-actions-list*))
+(defun complete-action (id)
   (when id
     (when-let ((matching-action (get-action-by-id id)))
       (and

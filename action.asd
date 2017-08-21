@@ -21,7 +21,7 @@
   :depends-on (:alexandria
                :cl-strings
                :local-time
-               :uuid 
+               :uuid
                :cl-ppcre
                :ratify)
   :components ((:module "src"
