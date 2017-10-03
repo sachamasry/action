@@ -43,8 +43,95 @@ Use 'cmd --help to get command-specific help.")
          (unless (remainder)
            (action:cli-list-actions)
            (exit))
-         (cond ((string= (first (remainder)) "add")
-                (action:add-action (remainder))))))
+         (cond
+           ;; list outstanding actions
+           ((or (string= (first (remainder)) "list")
+                (string= (first (remainder)) "ls"))
+            (action:cli-list-actions))
+
+           ;; complete action
+           ((and (or (string= (first (remainder)) "done")
+                     (string= (first (remainder)) "complete")
+                     (string= (first (remainder)) "completed")
+                     (string= (first (remainder)) "comp"))
+                 (second (remainder)))
+            (and
+             (action:complete-action
+              (string-upcase (second (remainder))))
+             (format t "Activity ~a completed.~%" (second (remainder)))))
+
+           ;; delete action
+           ((and
+             (or (string= (first (remainder)) "delete")
+                 (string= (first (remainder)) "del")
+                 (string= (first (remainder)) "remove")
+                 (string= (first (remainder)) "rem")
+                 (string= (first (remainder)) "rm"))
+             (second (remainder)))
+            (and
+             (action:delete-action (second (remainder)))
+             (format t "Activity ~a deleted.~%" (second (remainder)))))
+
+           ;; log action
+           ((string= (first (remainder)) "log")
+            (and
+             (action:log-action
+              (cl-strings:join (rest (remainder)) :separator " "))
+             (format t "Logged completed activity.~%")))
+
+           ;; edit action
+           ((and (or (string= (first (remainder)) "edit")
+                     (string= (first (remainder)) "ed"))
+                 (second (remainder))
+                 (third (remainder)))
+            (and
+             (action:edit-action
+              (string-upcase (second (remainder)))
+              (cl-strings:join 
+               (rest (rest (remainder))) :separator " "))
+             (format t "Activity ~a updated.~%" (second (remainder)))))
+
+           ;; prepend
+           ((and (or (string= (first (remainder)) "prepend")
+                     (string= (first (remainder)) "pre"))
+                 (second (remainder))
+                 (third (remainder)))
+            (and
+             (action:prepend-to-action
+              (string-upcase (second (remainder)))
+              (cl-strings:join 
+               (rest (rest (remainder))) :separator " "))
+             (format t "Activity ~a updated.~%" (second (remainder)))))
+
+           ;; append
+           ((and (or (string= (first (remainder)) "append")
+                     (string= (first (remainder)) "app")
+                     (string= (first (remainder)) "ap"))
+                 (second (remainder))
+                 (third (remainder)))
+            (and
+             (action:append-to-action
+              (string-upcase (second (remainder)))
+              (cl-strings:join 
+               (rest (rest (remainder))) :separator " "))
+             (format t "Activity ~a updated.~%" (second (remainder)))))
+
+           ;; If there is a remainder, and if the first item is
+           ;; "add" then create new activity using the rest of the
+           ;; remainder
+           ;; Otherwise, create new activity using the remainder
+           (t
+            (cond ((string= (first (remainder)) "add")
+                   (and
+                    (action:add-action
+                     (cl-strings:join (rest (remainder)) :separator " "))
+                    (format t "New activity added.~%")))
+                  (t
+                   (and
+                    (action:add-action
+                     (cl-strings:join (remainder) :separator " "))
+                    (format t "New activity added.~%"))))))
+         (exit))))
                
          ;; (make-context
          ;;  :synopsis (cond ((string= (first (remainder)) "add")
@@ -62,6 +149,5 @@ Use 'cmd --help to get command-specific help.")
          ;;          (print (list option name value source)))
          ;;        (terpri)
          ;;        (format t "Remainder: ~A~%" (remainder))))))
-  (exit))
 
 (dump "act" main)

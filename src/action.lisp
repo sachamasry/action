@@ -6,8 +6,9 @@
                 #:now
                 #:format-timestring)
   (:import-from :uuid
+                #:make-uuid-from-string
                 #:uuid=
-   :make-v4-uuid)
+                #:make-v4-uuid)
   (:import-from :alexandria
                 #:when-let)
   (:import-from :action/persistence
@@ -71,14 +72,14 @@
 
 ;; Create *action-list* variable, holding a list of next actions
 ;; Load persisted actions from file upon first definition
-(defvar *action-list*
-  (with-open-file (file +actions-data-file+ :direction :input)
-    (with-standard-io-syntax
-      (let ((*read-eval* nil))
-        (setf *action-list* (read file 'NIL 'NIL))))))
+(defvar *action-list* 'NIL)
 
 (defun get-action-list ()
-  *action-list*)
+  (setf *action-list*
+        (with-open-file (file +actions-data-file+ :direction :input)
+          (with-standard-io-syntax
+            (let ((*read-eval* nil))
+              (setf *action-list* (read file 'NIL 'NIL)))))))
 
 ;; Upon every setting of the action list, persist the list to file
 (defun set-action-list (new-value)
@@ -162,7 +163,7 @@
 (defun shorten-id (id digits)
   (subseq (format nil "~s" id) 0 digits))
 
-(defun get-id-from-fragment (short-id &key (action-list *action-list*)
+(defun get-id-from-fragment (short-id &key (action-list (get-action-list))
                                       (short-id-length 2))
   (when (and short-id
              (or (stringp short-id)
@@ -198,92 +199,99 @@
               (format-action-list :list-completed list-completed))
       (terpri))))
 
-(defun get-action-by-id (id &key (action-list *action-list*))
+(defun get-action-by-id (id &key (action-list (get-action-list)))
   (when id
     (when-let ((expanded-id (get-id-from-fragment id)))
       (find-if
        #'(lambda (action) (uuid=
-                           expanded-id
-                           (getf action :id)))
-     action-list))))
+                           (make-uuid-from-string
+                            (symbol-name expanded-id))
+                           (make-uuid-from-string
+                            (symbol-name (getf action :id)))))
+       action-list))))
 
-(defun remove-action (id &key (action-list *action-list*))
+(defun remove-action (id &key (action-list (get-action-list)))
   (when id
     (when-let ((matching-action (get-action-by-id id)))
       (set-action-list
        (remove-if
-        #'(lambda (action) (eq action matching-action))
+        #'(lambda (action) (equal action matching-action))
         action-list)))))
 
 (defun delete-action (id &key (reason ""))
   (when id
-    (when-let ((matching-action (get-action-by-id id)))
-      (let ((deleted-action
-              (append matching-action
-                      (list :status "deleted"
-                            :reason reason
-                            :deleted-on
-                            (format-timestring 'NIL (now))))))
+    (let ((canonical-id (string-upcase id)))
+      (when-let ((matching-action (get-action-by-id canonical-id)))
+        (let ((deleted-action
+                (append matching-action
+                        (list :status "deleted"
+                              :reason reason
+                              :deleted-on
+                              (format-timestring 'NIL (now))))))
         (and
          (append-to-activity-log deleted-action "delete action"
                                  :old-action matching-action)
-         (remove-action id))))))
+         (remove-action canonical-id)))))))
 
 (defun edit-action (id description &key merge-with-description
                                      priority time-estimated)
   (when id
-    (when-let ((matching-action (get-action-by-id id)))
-      (let ((updated-action (copy-list matching-action)))
-        (when (not (zerop (length description)))
-          (cond ((eq merge-with-description :prepend)
-                 (setf (getf updated-action :description)
-                       (concatenate 'string
-                                    description " "
-                                    (getf updated-action :description))))
-                ((eq merge-with-description :append)
-                 (setf (getf updated-action :description)
-                       (concatenate 'string
-                                    (getf updated-action :description)
-                                    " " description)))
-                (t (setf (getf updated-action :description) description))))
-        (when priority
-          (setf (getf updated-action :priority) priority))
-        (when time-estimated
-          (setf (getf updated-action :time-estimated) time-estimated))
-        (if (getf updated-action :modified-on)
-            (setf (getf updated-action :modified-on)
-                  (format-timestring 'NIL (now)))
-            (setf updated-action
-                  (append updated-action
-                          (list :status "modified"
-                                :modified-on
-                                (format-timestring 'NIL (now))))))
-        (and
-         (append-to-activity-log updated-action "update action"
-                                 :old-action matching-action)
-         (set-action-list
-          (mapcar #'(lambda (action) (if 
-                                      (eq (get-action-by-id id) action)
-                                      updated-action
-                                      action))
-                  (get-action-list))))))))
+    (let ((canonical-id (string-upcase id)))
+      (when-let ((matching-action (get-action-by-id canonical-id)))
+        (let ((updated-action (copy-list matching-action)))
+          (when (not (zerop (length description)))
+            (cond ((eq merge-with-description :prepend)
+                   (setf (getf updated-action :description)
+                         (concatenate 'string
+                                      description " "
+                                      (getf updated-action :description))))
+                  ((eq merge-with-description :append)
+                   (setf (getf updated-action :description)
+                         (concatenate 'string
+                                      (getf updated-action :description)
+                                      " " description)))
+                  (t (setf (getf updated-action :description) description))))
+          (when priority
+            (setf (getf updated-action :priority) priority))
+          (when time-estimated
+            (setf (getf updated-action :time-estimated) time-estimated))
+          (if (getf updated-action :modified-on)
+              (setf (getf updated-action :modified-on)
+                    (format-timestring 'NIL (now)))
+              (setf updated-action
+                    (append updated-action
+                            (list :status "modified"
+                                  :modified-on
+                                  (format-timestring 'NIL (now))))))
+          (and
+           (append-to-activity-log updated-action "update action"
+                                   :old-action matching-action)
+           (set-action-list
+            (mapcar #'(lambda (action) (if 
+                                        (equal (get-action-by-id canonical-id) action)
+                                        updated-action
+                                        action))
+                    (get-action-list)))))))))
 
 (defun prepend-to-action (id text)
   (when (and id
              (plusp (length text)))
-    (edit-action id text :merge-with-description :prepend)))
+    (let ((canonical-id (string-upcase id)))
+      (edit-action canonical-id text :merge-with-description :prepend))))
 
 (defun append-to-action (id text)
   (when (and id
              (plusp (length text)))
-    (edit-action id text :merge-with-description :append)))
+    (let ((canonical-id (string-upcase id)))
+      (edit-action canonical-id text :merge-with-description :append))))
 
 (defun complete-action (id)
   (when id
-    (when-let ((matching-action (get-action-by-id id)))
-      (and
-       (add-action-to-completed-actions-list matching-action)
-       (remove-action id)))))
+    (let ((canonical-id (string-upcase id)))
+      (when-let ((matching-action (get-action-by-id canonical-id)))
+        (and
+         (add-action-to-completed-actions-list matching-action)
+         (remove-action canonical-id))))))
 
 (defun log-action (description &key (priority "") (time-estimated 0))
   "Log action which is already completed, without creating it first,
