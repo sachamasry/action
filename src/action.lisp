@@ -20,6 +20,7 @@
    #:add-action
    #:cli-list-actions
    #:delete-action
+   #:purge-action
    #:edit-action
    #:prepend-to-action
    #:append-to-action
@@ -147,11 +148,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Define main action verbs
 (defun add-action (description &key (priority "") (time-estimated 0))
-  (let ((timestamp (format-timestring 'NIL (now))))
-    (add-action-to-action-list
-     (list :id (make-v4-uuid) :priority priority
-           :time-estimated time-estimated :description description 
-           :created-on timestamp)))) 
+  (let ((timestamp (format-timestring 'NIL (now)))
+        (uuid (make-v4-uuid)))
+    (and
+     (add-action-to-action-list
+      (list :id uuid :priority priority
+            :time-estimated time-estimated :description description 
+            :created-on timestamp))
+     (shorten-id uuid 2))))
 
 (defun action-list (&key (action-list *action-list*)
                        (completed-actions-list *completed-actions-list*)
@@ -218,7 +222,7 @@
         #'(lambda (action) (equal action matching-action))
         action-list)))))
 
-(defun delete-action (id &key (reason ""))
+(defun delete-action (id &key (reason "") (purge ()))
   (when id
     (let ((canonical-id (string-upcase id)))
       (when-let ((matching-action (get-action-by-id canonical-id)))
@@ -228,10 +232,15 @@
                               :reason reason
                               :deleted-on
                               (format-timestring 'NIL (now))))))
-        (and
-         (append-to-activity-log deleted-action "delete action"
-                                 :old-action matching-action)
-         (remove-action canonical-id)))))))
+          (if purge
+              (remove-action canonical-id)
+              (and
+               (append-to-activity-log deleted-action "delete action"
+                                       :old-action matching-action)
+               (remove-action canonical-id))))))))
+
+(defun purge-action (id)
+  (delete-action id :purge t))
 
 (defun edit-action (id description &key merge-with-description
                                      priority time-estimated)
@@ -300,8 +309,9 @@ and completed, even if some of them weren't managed from within Action!"
   (progn
     (lazy-load-completed-actions)
     (let* ((timestamp (format-timestring 'NIL (now)))
+           (uuid (make-v4-uuid))
            (completed-action
-             (list :id (make-v4-uuid) :priority priority
+             (list :id uuid :priority priority
                    :time-estimated time-estimated :description description 
                    :created-on timestamp
                    :status "logged completed"
@@ -312,7 +322,7 @@ and completed, even if some of them weren't managed from within Action!"
         +completed-actions-data-file+ completed-action
         :exists-action :append)
        (push completed-action *completed-actions-list*)
-       t))))
+       uuid ))))
 
 ;; I was considering whether to use YAML for data (activity)
 ;; serialization to disk, specifically whether to use the MAP

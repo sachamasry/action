@@ -8,6 +8,7 @@
 (load "bundle")
 (asdf:load-system :net.didierverna.clon)
 (asdf:load-system :action)
+(asdf:load-system :alexandria)
 (asdf:load-system :cl-strings)
 (use-package :net.didierverna.clon)
 (use-package :action)
@@ -72,12 +73,21 @@ Use 'cmd --help to get command-specific help.")
              (action:delete-action (second (remainder)))
              (format t "Activity ~a deleted.~%" (second (remainder)))))
 
+           ((and
+             (or (string= (first (remainder)) "purge")
+                 (string= (first (remainder)) "destroy"))
+             (second (remainder)))
+            (and
+             (action:purge-action (second (remainder)))
+             (format t "Activity ~a purged.~%" (second (remainder)))))
+
            ;; log action
            ((string= (first (remainder)) "log")
-            (and
-             (action:log-action
-              (cl-strings:join (rest (remainder)) :separator " "))
-             (format t "Logged completed activity.~%")))
+            (alexandria:when-let
+                ((id
+                  (action:log-action
+                   (cl-strings:join (rest (remainder)) :separator " "))))
+              (format t "Logged completed activity ~a.~%" id)))
 
            ;; edit action
            ((and (or (string= (first (remainder)) "edit")
@@ -122,15 +132,17 @@ Use 'cmd --help to get command-specific help.")
            ;; Otherwise, create new activity using the remainder
            (t
             (cond ((string= (first (remainder)) "add")
-                   (and
-                    (action:add-action
-                     (cl-strings:join (rest (remainder)) :separator " "))
-                    (format t "New activity added.~%")))
+                   (alexandria:when-let
+                       ((id
+                         (action:add-action
+                          (cl-strings:join (rest (remainder)) :separator " "))))
+                     (format t "Added new activity ~a.~%" id)))
                   (t
-                   (and
-                    (action:add-action
-                     (cl-strings:join (remainder) :separator " "))
-                    (format t "New activity added.~%"))))))
+                   (alexandria:when-let
+                       ((id
+                         (action:add-action
+                          (cl-strings:join (remainder) :separator " "))))
+                     (format t "Added new activity ~a.~%" id))))))
          (exit))))
                
          ;; (make-context
