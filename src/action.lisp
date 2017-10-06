@@ -13,7 +13,8 @@
                 #:when-let)
   (:import-from :action/persistence
                 #:write-sexp-to-file
-                #:read-sexp-from-file)
+                #:read-sexp-from-file
+                #:create-file-snapshot)
   (:export
    #:system-version
 
@@ -323,6 +324,22 @@ and completed, even if some of them weren't managed from within Action!"
         :exists-action :append)
        (push completed-action *completed-actions-list*)
        uuid ))))
+
+(defun backup-file (&key data-file)
+  ""
+  (when data-file
+    (cond ((eq data-file :actions)
+           (create-file-snapshot +ACTIONS-DATA-FILE+))
+          ((eq data-file :completed-actions)
+           (create-file-snapshot +COMPLETED-ACTIONS-DATA-FILE+))
+          ((eq data-file :activity-log)
+           (create-file-snapshot +ACTIVITY-LOG+))
+          ((eq data-file :all)
+           (and
+            (create-file-snapshot +ACTIONS-DATA-FILE+)
+            (create-file-snapshot +COMPLETED-ACTIONS-DATA-FILE+)
+            (create-file-snapshot +ACTIVITY-LOG+))))))
+
 
 ;; I was considering whether to use YAML for data (activity)
 ;; serialization to disk, specifically whether to use the MAP

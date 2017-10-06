@@ -32,7 +32,9 @@
            #:construct-destination-directory
            #:construct-file-name
            #:construct-destination-path
-           #:get-system-source-directory ))
+           #:get-system-source-directory
+           #:copy-file
+           #:rm-file))
 (in-package :action/filesystem-interface)
 
 #|
@@ -226,3 +228,27 @@ conditions aren't met."
   ""
   (asdf:system-source-directory
    (asdf/find-system:find-system system)))
+
+(defun copy-file (source-file dest-file)
+  "Copy the SOURCE-FILE to the DEST-FILE.
+
+Source courtesy of Common Lisp Recipes (pp.453-454, Weitz, E. 2016)"
+  (let* ((element-type '(unsigned-byte 8))
+         (buffer (make-array 8192
+                             :element-type element-type)))
+    (with-open-file (in source-file :element-type element-type)
+      (with-open-file (out dest-file :element-type element-type
+                                     :direction :output
+                                     :if-exists :supersede)
+        (loop (let ((position (read-sequence buffer in)))
+                (when (zerop position)
+                  (return))
+                (write-sequence buffer out :end position)))
+        (pathname dest-file)))))
+
+(defun rm-file (file)
+  "Customised delete file function, checking whether file
+exists, before attempting to delete it."
+  (when (and file
+             (probe-file file))
+    (delete-file file)))
