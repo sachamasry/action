@@ -15,6 +15,8 @@
                 #:write-sexp-to-file
                 #:read-sexp-from-file
                 #:create-file-snapshot)
+  (:import-from :action/filesystem-interface
+                #:rm-file)
   (:export
    #:system-version
 
@@ -241,7 +243,27 @@
                (remove-action canonical-id))))))))
 
 (defun purge-action (id)
-  (delete-action id :purge t))
+  (when id
+    (when-let ((snapshot-file
+                (create-file-snapshot +ACTIVITY-LOG+)))
+      (progn 
+        (rm-file +activity-log+)
+        (with-open-file (in snapshot-file)
+          (with-open-file (out +activity-log+
+                               :direction :output
+                               :if-exists :supersede)
+            (with-standard-io-syntax
+              (let ((*print-circle* t))
+                (loop with eof = (gensym)
+                      for object = (read in nil eof)
+                      until (eq object eof)
+                      do (unless (equal (getf object :action-id)
+                                        (action::get-id-from-fragment id))
+                           (print object out)))))))
+        (and 
+         (delete-action id :purge t)
+         (rm-file snapshot-file))
+        id))))
 
 (defun edit-action (id description &key merge-with-description
                                      priority time-estimated)
@@ -339,7 +361,6 @@ and completed, even if some of them weren't managed from within Action!"
             (create-file-snapshot +ACTIONS-DATA-FILE+)
             (create-file-snapshot +COMPLETED-ACTIONS-DATA-FILE+)
             (create-file-snapshot +ACTIVITY-LOG+))))))
-
 
 ;; I was considering whether to use YAML for data (activity)
 ;; serialization to disk, specifically whether to use the MAP
