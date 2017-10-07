@@ -92,7 +92,7 @@
 
 (defun add-action-to-action-list (action)
   (and
-   (append-to-activity-log action "create new action")
+   (append-to-activity-log action :CREATE-NEW-ACTION)
    (action/persistence:write-sexp-to-file +actions-data-file+
                                           (set-action-list
                                            (cons action (get-action-list))))))
@@ -120,7 +120,7 @@
                                           :completed-on
                                           (format-timestring 'NIL (now))))))
       (and
-       (append-to-activity-log completed-action "completed action"
+       (append-to-activity-log completed-action :COMPLETE-ACTION
                                :old-action action)
        (action/persistence:write-sexp-to-file
         +completed-actions-data-file+ completed-action
@@ -134,19 +134,26 @@
 (defvar *activity-log* ())
 
 (defun append-to-activity-log (action activity-type &key old-action)
-  (let ((activity-to-log
-          (cond (old-action (list :time (format-timestring 'NIL (now))
-                                  :action-id (getf action :id)
-                                  :activity activity-type
-                                  :from old-action
-                                  :to action))
-                (t (list :time (format-timestring 'NIL (now))
-                         :action-id (getf action :id)
-                         :activity activity-type
-                         action)))))
-    (action/persistence:write-sexp-to-file
-     +activity-log+ activity-to-log
-     :exists-action :append)))
+  (when
+      (and (listp action)
+           (keywordp activity-type)
+           (if old-action
+               (listp old-action)
+               t))
+    (when-let ((action-id (getf action :id)))
+      (let ((activity-to-log
+              (cond (old-action (list :time (format-timestring 'NIL (now))
+                                      :action-id action-id
+                                      :activity activity-type
+                                      :from old-action
+                                      :to action))
+                    (t (list :time (format-timestring 'NIL (now))
+                             :action-id action-id
+                             :activity activity-type
+                             :action action)))))
+        (action/persistence:write-sexp-to-file
+         +activity-log+ activity-to-log
+         :exists-action :append)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Define main action verbs
@@ -238,7 +245,7 @@
           (if purge
               (remove-action canonical-id)
               (and
-               (append-to-activity-log deleted-action "delete action"
+               (append-to-activity-log deleted-action :DELETE-ACTION
                                        :old-action matching-action)
                (remove-action canonical-id))))))))
 
@@ -296,7 +303,7 @@
                                   :modified-on
                                   (format-timestring 'NIL (now))))))
           (and
-           (append-to-activity-log updated-action "update action"
+           (append-to-activity-log updated-action :MODIFY-ACTION
                                    :old-action matching-action)
            (set-action-list
             (mapcar #'(lambda (action) (if 
@@ -340,7 +347,7 @@ and completed, even if some of them weren't managed from within Action!"
                    :status "logged completed"
                    :logged-completed-on timestamp)))
       (and
-       (append-to-activity-log completed-action "log action")
+       (append-to-activity-log completed-action :LOG-ACTION)
        (action/persistence:write-sexp-to-file
         +completed-actions-data-file+ completed-action
         :exists-action :append)
