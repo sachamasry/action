@@ -28,7 +28,8 @@
    #:prepend-to-action
    #:append-to-action
    #:complete-action
-   #:log-action))
+   #:log-action
+   #:backup-file))
 (in-package :action)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -252,7 +253,8 @@
 (defun purge-action (id)
   (when id
     (when-let ((snapshot-file
-                (create-file-snapshot +ACTIVITY-LOG+)))
+                (create-file-snapshot +ACTIVITY-LOG+
+                                      :dest-directory "tmp")))
       (progn 
         (rm-file +activity-log+)
         (with-open-file (in snapshot-file)
@@ -354,20 +356,32 @@ and completed, even if some of them weren't managed from within Action!"
        (push completed-action *completed-actions-list*)
        uuid ))))
 
-(defun backup-file (&key data-file)
+(defun backup-file (data-file)
   ""
   (when data-file
     (cond ((eq data-file :actions)
-           (create-file-snapshot +ACTIONS-DATA-FILE+))
-          ((eq data-file :completed-actions)
-           (create-file-snapshot +COMPLETED-ACTIONS-DATA-FILE+))
-          ((eq data-file :activity-log)
-           (create-file-snapshot +ACTIVITY-LOG+))
+           (create-file-snapshot +ACTIONS-DATA-FILE+
+                                 :dest-directory "backup"))
+          ((or
+            (eq data-file :completed-actions)
+            (eq data-file :completed)
+            (eq data-file :done))
+           (create-file-snapshot +COMPLETED-ACTIONS-DATA-FILE+
+                                 :dest-directory "backup"))
+          ((or
+            (eq data-file :activity-log)
+            (eq data-file :activity)
+            (eq data-file :log))
+           (create-file-snapshot +ACTIVITY-LOG+
+                                 :dest-directory "backup"))
           ((eq data-file :all)
            (and
-            (create-file-snapshot +ACTIONS-DATA-FILE+)
-            (create-file-snapshot +COMPLETED-ACTIONS-DATA-FILE+)
-            (create-file-snapshot +ACTIVITY-LOG+))))))
+            (create-file-snapshot +ACTIONS-DATA-FILE+
+                                  :dest-directory "backup")
+            (create-file-snapshot +COMPLETED-ACTIONS-DATA-FILE+
+                                  :dest-directory "backup")
+            (create-file-snapshot +ACTIVITY-LOG+
+                                  :dest-directory "backup"))))))
 
 ;; I was considering whether to use YAML for data (activity)
 ;; serialization to disk, specifically whether to use the MAP

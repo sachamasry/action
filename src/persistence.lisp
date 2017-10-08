@@ -34,10 +34,12 @@
                      until (eq *eof-value* sexp)
                      collect sexp))))))
 
-(defun create-file-snapshot (file &key (delimiter #\-))
+(defun create-file-snapshot (file &key (dest-directory "snapshots")
+                                    (delimiter #\-))
   (when (and file
              (probe-file file))
-    (let ((timestamp
+    (let ((snapshot-dir)
+          (timestamp
             (local-time:format-timestring
              nil (local-time:now)
              :format '((:year 4) #\-
@@ -52,6 +54,7 @@
         (let ((dest-file
                 (construct-destination-path
                  :source-path directory
+                 :destination-directory dest-directory
                  :destination-file-name 
                  (construct-file-name "" "-"
                                       file-name "snapshot" timestamp)

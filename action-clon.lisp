@@ -126,6 +126,17 @@ Use 'cmd --help to get command-specific help.")
                (rest (rest (remainder))) :separator " "))
              (format t "Activity ~a updated.~%" (second (remainder)))))
 
+           ;; backup
+           ((and
+             (string= (first (remainder)) "backup")
+             (second (remainder)))
+            (and
+             (action:backup-file
+              (intern
+               (string-upcase (second (remainder)))
+               :keyword))
+             (format t "Backup complete.~%")))
+
            ;; If there is a remainder, and if the first item is
            ;; "add" then create new activity using the rest of the
            ;; remainder
