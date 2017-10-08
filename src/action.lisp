@@ -274,13 +274,13 @@
          (rm-file snapshot-file))
         id))))
 
-(defun edit-action (id description &key merge-with-description
-                                     priority time-estimated)
+(defun edit-action (id &key description merge-with-description
+                      priority time-estimated due wait)
   (when id
     (let ((canonical-id (string-upcase id)))
       (when-let ((matching-action (get-action-by-id canonical-id)))
         (let ((updated-action (copy-list matching-action)))
-          (when (not (zerop (length description)))
+          (when (and description (stringp description))
             (cond ((eq merge-with-description :prepend)
                    (setf (getf updated-action :description)
                          (concatenate 'string
@@ -296,6 +296,16 @@
             (setf (getf updated-action :priority) priority))
           (when time-estimated
             (setf (getf updated-action :time-estimated) time-estimated))
+          (when (and due (local-time:parse-timestring due :fail-on-error NIL))
+            (if (getf updated-action :due)
+                (setf (getf updated-action :due) due)
+                (setf updated-action
+                      (append upadated-action (list :due due)))))
+          (when (and wait (local-time:parse-timestring wait :fail-on-error NIL))
+            (if (getf updated-action :wait)
+                (setf (getf updated-action :wait) wait)
+                (setf updated-action
+                      (append updated-action (list :wait wait)))))
           (if (getf updated-action :modified-on)
               (setf (getf updated-action :modified-on)
                     (format-timestring 'NIL (now)))
