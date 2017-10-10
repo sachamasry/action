@@ -160,7 +160,7 @@
 ;; Define main action verbs
 (defun add-action (description &key (priority "") (time-estimated 0))
   (let ((timestamp (format-timestring 'NIL (now)))
-        (uuid (make-v4-uuid)))
+        (uuid (intern (format nil "~s" (make-v4-uuid)))))
     (and
      (add-action-to-action-list
       (list :id uuid :priority priority
@@ -175,14 +175,18 @@
       (get-completed-actions-list)
       (get-action-list)))
 
-(defun shorten-id (id digits)
-  (subseq (format nil "~s" id) 0 digits))
+(defun shorten-id (id &optional (digits 2))
+  (subseq
+   (symbol-name id)
+   0 digits))
 
-(defun get-id-from-fragment (short-id &key (action-list (get-action-list))
-                                      (short-id-length 2))
+(defun get-id-from-fragment (short-id
+                             &key (action-list (get-action-list))
+                               (short-id-length 2))
   (when (and short-id
              (or (stringp short-id)
                  (setf short-id (format nil "~a" short-id))))
+    (setf short-id (string-upcase short-id))
     (second
      (first
       (remove-if-not
@@ -202,10 +206,13 @@
            (format t "-- -------- ---- -----------~%"))
          (format-action-list (&key list-completed)
            (mapcar
-            #'(lambda (action) (list (shorten-id (getf action :id) 2)
-                                   (getf action :priority)
-                                   (getf action :time-estimated)
-                                   (getf action :description)))
+            #'(lambda (action) (list
+                                (if (stringp (getf action :id))
+                                    (shorten-id (intern (getf action :id)) 2)
+                                    (shorten-id (getf action :id) 2))
+                                (getf action :priority)
+                                (getf action :time-estimated)
+                                (getf action :description)))
             (if list-completed (get-completed-actions-list)
                 (get-action-list)))))
     (progn
@@ -322,19 +329,21 @@
                                         (equal (get-action-by-id canonical-id) action)
                                         updated-action
                                         action))
-                    (get-action-list)))))))))
+                    id))))))))
 
 (defun prepend-to-action (id text)
   (when (and id
              (plusp (length text)))
     (let ((canonical-id (string-upcase id)))
-      (edit-action canonical-id text :merge-with-description :prepend))))
+      (edit-action canonical-id :description text
+                                :merge-with-description :prepend))))
 
 (defun append-to-action (id text)
   (when (and id
              (plusp (length text)))
     (let ((canonical-id (string-upcase id)))
-      (edit-action canonical-id text :merge-with-description :append))))
+      (edit-action canonical-id :description text
+                                :merge-with-description :append))))
 
 (defun complete-action (id)
   (when id
@@ -342,7 +351,8 @@
       (when-let ((matching-action (get-action-by-id canonical-id)))
         (and
          (add-action-to-completed-actions-list matching-action)
-         (remove-action canonical-id))))))
+         (remove-action canonical-id))
+        canonical-id))))
 
 (defun log-action (description &key (priority "") (time-estimated 0))
   "Log action which is already completed, without creating it first,
@@ -351,7 +361,8 @@ and completed, even if some of them weren't managed from within Action!"
   (progn
     (lazy-load-completed-actions)
     (let* ((timestamp (format-timestring 'NIL (now)))
-           (uuid (make-v4-uuid))
+           (uuid
+             (intern (format nil "~s" (make-v4-uuid))))
            (completed-action
              (list :id uuid :priority priority
                    :time-estimated time-estimated :description description 

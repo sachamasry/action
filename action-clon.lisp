@@ -97,8 +97,8 @@ Use 'cmd --help to get command-specific help.")
             (and
              (action:edit-action
               (string-upcase (second (remainder)))
-              (cl-strings:join 
-               (rest (rest (remainder))) :separator " "))
+              :description (cl-strings:join 
+                            (rest (rest (remainder))) :separator " "))
              (format t "Activity ~a updated.~%" (second (remainder)))))
 
            ;; prepend
