@@ -63,9 +63,10 @@
 ;; Ensure all required data files exist, creating empty files if
 ;; necessary
 (defun ensure-file-exists (file)
-  (unless (probe-file file)
-    (with-open-file (s file :direction :output)
-      (write-string "" s))))
+  (if (probe-file file)
+      file
+      (with-open-file (s file :direction :output)
+        (write-string "" s))))
 
 (defun ensure-files-exist (&rest files)
   (mapcar #'(lambda (file) (ensure-file-exists file))
@@ -80,11 +81,10 @@
 (defvar *action-list* 'NIL)
 
 (defun get-action-list ()
-  (setf *action-list*
-        (with-open-file (file +actions-data-file+ :direction :input)
-          (with-standard-io-syntax
-            (let ((*read-eval* nil))
-              (setf *action-list* (read file 'NIL 'NIL)))))))
+  (when (ensure-file-exists +actions-data-file+)
+    (setf *action-list*
+          (car
+           (action/persistence:read-sexp-from-file +actions-data-file+)))))
 
 ;; Upon every setting of the action list, persist the list to file
 (defun set-action-list (new-value)
@@ -94,9 +94,10 @@
 (defun add-action-to-action-list (action)
   (and
    (append-to-activity-log action :CREATE-NEW-ACTION)
-   (action/persistence:write-sexp-to-file +actions-data-file+
-                                          (set-action-list
-                                           (cons action (get-action-list))))))
+   (action/persistence:write-sexp-to-file
+    +actions-data-file+
+    (set-action-list
+     (cons action (get-action-list))))))
 
 ;; Create *completed-actions-list* variable, holding a list of all
 ;; completed actions. DO NOT load the file, as it is of unbounded
@@ -325,11 +326,13 @@
            (append-to-activity-log updated-action :MODIFY-ACTION
                                    :old-action matching-action)
            (set-action-list
-            (mapcar #'(lambda (action) (if 
-                                        (equal (get-action-by-id canonical-id) action)
-                                        updated-action
-                                        action))
-                    id))))))))
+            (mapcar #'(lambda (action)
+                        (if
+                         (equal (get-action-by-id canonical-id) action)
+                         updated-action
+                         action))
+                    (get-action-list)))
+           canonical-id))))))
 
 (defun prepend-to-action (id text)
   (when (and id

@@ -30,9 +30,9 @@
   (with-open-file (file filename :direction :input)
     (with-standard-io-syntax
       (let ((*read-eval* nil))
-        (prog1 (loop as sexp = (read file nil *eof-value*)
-                     until (eq *eof-value* sexp)
-                     collect sexp))))))
+        (loop as sexp = (read file nil *eof-value*)
+              until (eq *eof-value* sexp)
+              collect sexp)))))
 
 (defun create-file-snapshot (file &key (dest-directory "snapshots")
                                     (delimiter #\-))
