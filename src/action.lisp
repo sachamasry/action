@@ -308,7 +308,7 @@
             (if (getf updated-action :due)
                 (setf (getf updated-action :due) due)
                 (setf updated-action
-                      (append upadated-action (list :due due)))))
+                      (append updated-action (list :due due)))))
           (when (and wait (local-time:parse-timestring wait :fail-on-error NIL))
             (if (getf updated-action :wait)
                 (setf (getf updated-action :wait) wait)

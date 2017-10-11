@@ -52,6 +52,8 @@ Use 'cmd --help to get command-specific help.")
 
            ;; complete action
            ((and (or (string= (first (remainder)) "done")
+                     (string= (first (remainder)) "finish")
+                     (string= (first (remainder)) "complete")
                      (string= (first (remainder)) "complete")
                      (string= (first (remainder)) "completed")
                      (string= (first (remainder)) "comp"))
@@ -96,9 +98,9 @@ Use 'cmd --help to get command-specific help.")
                  (third (remainder)))
             (and
              (action:edit-action
-              (string-upcase (second (remainder)))
+              (second (remainder)))
               :description (cl-strings:join 
-                            (rest (rest (remainder))) :separator " "))
+                            (rest (rest (remainder))) :separator " ")
              (format t "Activity ~a updated.~%" (second (remainder)))))
 
            ;; prepend
@@ -108,9 +110,9 @@ Use 'cmd --help to get command-specific help.")
                  (third (remainder)))
             (and
              (action:prepend-to-action
-              (string-upcase (second (remainder)))
+              (second (remainder)))
               (cl-strings:join 
-               (rest (rest (remainder))) :separator " "))
+               (rest (rest (remainder))) :separator " ")
              (format t "Activity ~a updated.~%" (second (remainder)))))
 
            ;; append
@@ -121,10 +123,40 @@ Use 'cmd --help to get command-specific help.")
                  (third (remainder)))
             (and
              (action:append-to-action
-              (string-upcase (second (remainder)))
+              (second (remainder)))
               (cl-strings:join 
-               (rest (rest (remainder))) :separator " "))
+               (rest (rest (remainder))) :separator " ")
              (format t "Activity ~a updated.~%" (second (remainder)))))
+
+           ;; due date
+           ((and (or
+                  (string= (first (remainder)) "due")
+                  (string= (first (remainder)) "by")
+                  (string= (first (remainder)) "when"))
+                 (second (remainder))
+                 (third (remainder)))
+            (and
+             (action:edit-action
+              (second (remainder))
+              :due (third (remainder)))
+             (format t "Activity ~a updated with due date ~a~%"
+                     (string-upcase (second (remainder)))
+                     (third (remainder)))))
+
+           ;; wait date
+           ((and (or
+                  (string= (first (remainder)) "wait")
+                  (string= (first (remainder)) "delay")
+                  (string= (first (remainder)) "defer"))
+                 (second (remainder))
+                 (third (remainder)))
+            (and
+             (action:edit-action
+              (second (remainder))
+              :wait (third (remainder)))
+             (format t "Activity ~a updated with wait date ~a~%"
+                     (string-upcase (second (remainder)))
+                     (third (remainder)))))
 
            ;; backup
            ((and
