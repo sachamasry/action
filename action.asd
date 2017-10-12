@@ -15,7 +15,7 @@
 (in-package :action-asd)
 
 (defsystem action
-  :version "0.1"
+  :version "0.2"
   :author "Sacha El Masry"
   :license "BSD"
   :depends-on (:alexandria
