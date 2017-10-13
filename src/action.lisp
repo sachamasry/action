@@ -49,26 +49,26 @@
 (defparameter +project-data-directory+ ())
 
 ;; Ensure the directory exists, creating if if necessary
-(defparameter +action-data-directory+
-  (set-data-directory ()))
+(defparameter +action-data-directory+ ())
 
-(defun set-data-directory (parent-dir &optional (data-dir "action"))
+(defun set-data-directory (&key parent-dir
+                             (data-dir "action" data-dir-supplied-p))
   ""
-  (if (and parent-dir
-           (stringp parent-dir)
-           (directory-exists-p parent-dir))
-      (and 
-       (setf +project-data-directory+ parent-dir)
-       (setf +action-data-directory+
-             (ensure-directories-exist
-              (action/filesystem-interface:construct-directory 
-               +project-data-directory+
-               data-dir))))
+  (if (and data-dir-supplied-p
+           (stringp data-dir))
+      (setf +action-data-directory+
+            (ensure-directories-exist
+             (if (uiop:absolute-pathname-p data-dir)
+                 data-dir
+                 (action/filesystem-interface:construct-directory 
+                  *default-pathname-defaults* data-dir))))
       (setf +action-data-directory+
             (ensure-directories-exist
              (action/filesystem-interface:construct-directory 
               (uiop/configuration:xdg-data-home)
               data-dir)))))
+
+(set-data-directory)
 
 (defparameter +actions-data-file+
   (merge-pathnames +action-data-directory+ "actions.data"))
@@ -294,7 +294,7 @@
                       for object = (read in nil eof)
                       until (eq object eof)
                       do (unless (equal (getf object :action-id)
-                                        (action::get-id-from-fragment id))
+                                        (get-id-from-fragment id))
                            (print object out)))))))
         (and 
          (delete-action id :purge t)
