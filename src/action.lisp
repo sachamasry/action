@@ -11,6 +11,8 @@
                 #:make-v4-uuid)
   (:import-from :alexandria
                 #:when-let)
+  (:import-from :fad
+                #:directory-exists-p)
   (:import-from :action/persistence
                 #:write-sexp-to-file
                 #:read-sexp-from-file
@@ -19,7 +21,6 @@
                 #:rm-file)
   (:export
    #:system-version
-
    #:add-action
    #:cli-list-actions
    #:delete-action
@@ -45,11 +46,29 @@
 ;; Action! will store its data in an XDG compliant data directory,
 ;; $HOME/.config/action/
 
+(defparameter +project-data-directory+ ())
+
 ;; Ensure the directory exists, creating if if necessary
-(defparameter +action-data-directory+ 
-  (ensure-directories-exist
-   (action/filesystem-interface:construct-directory 
-    (uiop/configuration:xdg-data-home) "action")))
+(defparameter +action-data-directory+
+  (set-data-directory ()))
+
+(defun set-data-directory (parent-dir &optional (data-dir "action"))
+  ""
+  (if (and parent-dir
+           (stringp parent-dir)
+           (directory-exists-p parent-dir))
+      (and 
+       (setf +project-data-directory+ parent-dir)
+       (setf +action-data-directory+
+             (ensure-directories-exist
+              (action/filesystem-interface:construct-directory 
+               +project-data-directory+
+               data-dir))))
+      (setf +action-data-directory+
+            (ensure-directories-exist
+             (action/filesystem-interface:construct-directory 
+              (uiop/configuration:xdg-data-home)
+              data-dir)))))
 
 (defparameter +actions-data-file+
   (merge-pathnames +action-data-directory+ "actions.data"))
