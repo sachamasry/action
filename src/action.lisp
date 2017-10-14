@@ -30,7 +30,8 @@
    #:append-to-action
    #:complete-action
    #:log-action
-   #:backup-file))
+   #:backup-file
+   #:set-data-directory))
 (in-package :action)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -45,6 +46,22 @@
 
 ;; Action! will store its data in an XDG compliant data directory,
 ;; $HOME/.config/action/
+
+;; Ensure all required data files exist, creating empty files if
+;; necessary
+(defun ensure-file-exists (file)
+  (if (probe-file file)
+      file
+      (with-open-file (s file :direction :output)
+        (write-string "" s))))
+
+(defun ensure-files-exist (&rest files)
+  (mapcar #'(lambda (file) (ensure-file-exists file))
+          files))
+
+(defparameter +actions-data-file+ ())
+(defparameter +completed-actions-data-file+ ())
+(defparameter +activity-log+ ())
 
 (defparameter +project-data-directory+ ())
 
@@ -66,30 +83,33 @@
             (ensure-directories-exist
              (action/filesystem-interface:construct-directory 
               (uiop/configuration:xdg-data-home)
-              data-dir)))))
+              data-dir))))
+  (and
+   (set-actions-data-file +action-data-directory+)
+   (set-completed-actions-data-file +action-data-directory+)
+   (set-activity-log-data-file +action-data-directory+)
+   (ensure-files-exist +actions-data-file+
+                       +completed-actions-data-file+
+                       +activity-log+)))
 
-(set-data-directory)
+;(merge-pathnames +action-data-directory+ "actions.data"))
+(defun set-actions-data-file (data-dir)
+  (setf +actions-data-file+
+        (merge-pathnames data-dir "actions.data")))
 
-(defparameter +actions-data-file+
-  (merge-pathnames +action-data-directory+ "actions.data"))
+;  (merge-pathnames +action-data-directory+ "completed.data"))
+(defun set-completed-actions-data-file (data-dir)
+  (setf +completed-actions-data-file+
+        (merge-pathnames data-dir "completed.data")))
 
-(defparameter +completed-actions-data-file+
-  (merge-pathnames +action-data-directory+ "completed.data"))
+;  (merge-pathnames +action-data-directory+ "activity-log.data"))
+(defun set-activity-log-data-file (data-dir)
+  (setf +activity-log+
+        (merge-pathnames data-dir "activity-log.data")))
 
-(defparameter +activity-log+ 
-  (merge-pathnames +action-data-directory+ "activity-log.data"))
 
-;; Ensure all required data files exist, creating empty files if
-;; necessary
-(defun ensure-file-exists (file)
-  (if (probe-file file)
-      file
-      (with-open-file (s file :direction :output)
-        (write-string "" s))))
-
-(defun ensure-files-exist (&rest files)
-  (mapcar #'(lambda (file) (ensure-file-exists file))
-          files))
+(unless +action-data-directory+
+  (set-data-directory))
 
 (ensure-files-exist +actions-data-file+
                     +completed-actions-data-file+
