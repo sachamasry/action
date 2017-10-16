@@ -125,6 +125,33 @@
           (car
            (action/persistence:read-sexp-from-file +actions-data-file+)))))
 
+(defun get-sorted-action-list ()
+  ""
+  (stable-sort (act::get-action-list)
+                        #'>
+                        :key #'(lambda (list) 
+                                 (+ (action::timestamp-whole-day-difference
+                                     (local-time:parse-timestring (getf list :created-on))
+                                     (local-time:today))
+                                    (if (integerp (getf list :priority))
+                                        (- 100 (getf list :priority))
+                                        0)
+                                    (if (local-time:parse-timestring 
+                                         (getf list :due) :fail-on-error ())
+                                        (action::timestamp-whole-day-difference 
+                                         (getf list :due) 
+                                         (local-time:today))
+                                        0)
+                                    (if (local-time:parse-timestring
+                                         (getf list :wait) 
+                                         :fail-on-error ())
+                                        (* -1 
+                                           (action::timestamp-whole-day-difference
+                                            (local-time:today)
+                                            (local-time:parse-timestring
+                                             (getf list :wait))))
+                                        0)))))
+
 ;; Upon every setting of the action list, persist the list to file
 (defun set-action-list (new-value)
   (action/persistence:write-sexp-to-file +actions-data-file+
@@ -238,28 +265,58 @@
                                       (getf action :id)))
                action-list))))))
 
-(defun cli-list-actions (&key (action-list *action-list*)
-                       (completed-actions-list *completed-actions-list*)
-                       list-completed)
-  (flet ((format-header ()
-           (format t "ID Priority Time Description~%")
-           (format t "-- -------- ---- -----------~%"))
-         (format-action-list (&key list-completed)
-           (mapcar
-            #'(lambda (action) (list
-                                (if (stringp (getf action :id))
-                                    (shorten-id (intern (getf action :id)) 2)
-                                    (shorten-id (getf action :id) 2))
-                                (getf action :priority)
-                                (getf action :time-estimated)
-                                (getf action :description)))
-            (if list-completed (get-completed-actions-list)
-                (get-action-list)))))
-    (progn
-      (format-header)
-      (format t "~:{~&~2A ~8A ~4D ~A~}"
-              (format-action-list :list-completed list-completed))
-      (terpri))))
+(defun timestamp-whole-day-difference (time-a time-b)
+  "Returns the number of whole days elapsed between time-a and time-b"
+  (when (and time-a time-b)
+    (let* ((seconds-in-day (* 60 60 24)))
+      (/ 
+       (local-time:timestamp-difference 
+        (if (stringp time-b)
+            (local-time:parse-timestring time-b)
+            time-b)
+        (if (stringp time-a)
+            (local-time:parse-timestring time-a)
+            time-a))
+        seconds-in-day))))
+
+(defun cli-list-actions (&key list-completed)
+  (let ((today (local-time:today)))
+    (flet ((format-header ()
+             (format t "ID Pri Wait Due Description~%")
+             (format t "-- --- ---- --- -----------~%"))
+           (format-action-list (&key list-completed)
+             (mapcar
+              #'(lambda (action) (list
+                                  (if (stringp (getf action :id))
+                                      (shorten-id (intern (getf action :id)) 2)
+                                      (shorten-id (getf action :id) 2))
+                                  (if (stringp (getf action :priority))
+                                      0 (getf action :priority))
+                                  (if (local-time:parse-timestring
+                                       (getf action :wait)
+                                       :fail-on-error NIL)
+                                      (timestamp-whole-day-difference
+                                       today
+                                       (local-time:parse-timestring
+                                        (getf action :wait)))
+                                      "")
+                                  (if (local-time:parse-timestring
+                                       (getf action :due)
+                                       :fail-on-error NIL)
+                                      (timestamp-whole-day-difference
+                                       today
+                                       (local-time:parse-timestring
+                                        (getf action :due)))
+                                      "")
+                                  (getf action :description)))
+              (if list-completed
+                  (get-completed-actions-list)
+                  (get-sorted-action-list)))))
+      (progn
+        (format-header)
+        (format t "~:{~&~2A ~3d ~4<~a~> ~3<~a~> ~A~}"
+                (format-action-list :list-completed list-completed))
+        (terpri)))))
 
 (defun get-action-by-id (id &key (action-list (get-action-list)))
   (when id

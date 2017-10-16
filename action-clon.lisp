@@ -63,14 +63,20 @@ Use 'cmd --help to get command-specific help.")
              ;; list outstanding actions
              ((or (string= (first remainder) "list")
                   (string= (first remainder) "ls"))
-              (action:cli-list-actions))
+              (if (and (second remainder)
+                       (or (string= (second remainder) "done")
+                           (string= (second remainder) "finished")
+                           (string= (second remainder) "completed")
+                           (string= (second remainder) "complete")
+                           (string= (second remainder) "comp")))
+                  (action:cli-list-actions :list-completed t)
+                  (action:cli-list-actions)))
 
              ;; complete action
              ((and (or (string= (first remainder) "done")
                        (string= (first remainder) "finish")
-                       (string= (first remainder) "complete")
-                       (string= (first remainder) "complete")
                        (string= (first remainder) "completed")
+                       (string= (first remainder) "complete")
                        (string= (first remainder) "comp"))
                    (second remainder))
               (and
@@ -142,6 +148,21 @@ Use 'cmd --help to get command-specific help.")
                 (cl-strings:join 
                  (rest (rest remainder)) :separator " "))
                (format t "Activity ~a updated.~%" (second remainder))))
+
+             ;; priority
+             ((and (or
+                    (string= (first remainder) "priority")
+                    (string= (first remainder) "pri"))
+                   (second remainder)
+                   (third remainder))
+              (and
+               (action:edit-action
+                (second remainder)
+                :priority (or (parse-integer (third remainder) :junk-allowed t)
+                              (third remainder)))
+               (format t "Activity ~a updated with priority ~a~%"
+                       (string-upcase (second remainder))
+                       (third remainder))))
 
              ;; due date
              ((and (or
