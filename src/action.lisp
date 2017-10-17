@@ -125,32 +125,48 @@
           (car
            (action/persistence:read-sexp-from-file +actions-data-file+)))))
 
-(defun get-sorted-action-list ()
+(defun get-filtered-action-list (action-list)
   ""
-  (stable-sort (act::get-action-list)
-                        #'>
-                        :key #'(lambda (list) 
-                                 (+ (action::timestamp-whole-day-difference
-                                     (local-time:parse-timestring (getf list :created-on))
-                                     (local-time:today))
-                                    (if (integerp (getf list :priority))
-                                        (- 100 (getf list :priority))
-                                        0)
-                                    (if (local-time:parse-timestring 
-                                         (getf list :due) :fail-on-error ())
-                                        (action::timestamp-whole-day-difference 
-                                         (getf list :due) 
-                                         (local-time:today))
-                                        0)
-                                    (if (local-time:parse-timestring
-                                         (getf list :wait) 
-                                         :fail-on-error ())
-                                        (* -1 
-                                           (action::timestamp-whole-day-difference
-                                            (local-time:today)
-                                            (local-time:parse-timestring
-                                             (getf list :wait))))
-                                        0)))))
+  (when (and action-list (listp action-list))
+    (remove-if
+     #'(lambda (sublist)
+         (when (and (getf sublist :wait)
+                    (>
+                     (timestamp-whole-day-difference
+                      (local-time:today)
+                      (local-time:parse-timestring
+                       (getf sublist :wait)))
+                     0))
+           t))
+     action-list)))
+
+(defun get-sorted-action-list (action-list)
+  ""
+  (when (and action-list (listp action-list))
+    (stable-sort action-list
+                 #'>
+                 :key #'(lambda (list) 
+                          (+ (action::timestamp-whole-day-difference
+                              (local-time:parse-timestring (getf list :created-on))
+                              (local-time:today))
+                             (if (integerp (getf list :priority))
+                                 (- 100 (getf list :priority))
+                                 0)
+                             (if (local-time:parse-timestring 
+                                  (getf list :due) :fail-on-error ())
+                                 (action::timestamp-whole-day-difference 
+                                  (getf list :due) 
+                                  (local-time:today))
+                                 0)
+                             (if (local-time:parse-timestring
+                                  (getf list :wait) 
+                                  :fail-on-error ())
+                                 (* -1 
+                                    (action::timestamp-whole-day-difference
+                                     (local-time:today)
+                                     (local-time:parse-timestring
+                                      (getf list :wait))))
+                                 0))))))
 
 ;; Upon every setting of the action list, persist the list to file
 (defun set-action-list (new-value)
@@ -311,7 +327,9 @@
                                   (getf action :description)))
               (if list-completed
                   (get-completed-actions-list)
-                  (get-sorted-action-list)))))
+                  (get-sorted-action-list
+                   (get-filtered-action-list
+                    (get-action-list)))))))
       (progn
         (format-header)
         (format t "~:{~&~2A ~3d ~4<~a~> ~3<~a~> ~A~}"
