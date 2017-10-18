@@ -35,6 +35,9 @@
    #:append-to-action
    #:complete-action
    #:log-action
+   #:annotate-action
+   #:denotate-action
+   #:edit-annotation
    #:backup-file
    #:set-data-directory))
 (in-package :action)
@@ -426,20 +429,23 @@
   (when id
     (let ((canonical-id (string-upcase id)))
       (when-let ((matching-action (get-action-by-id canonical-id)))
+        (format t "~%Task ~a information~%" canonical-id)
+        (format t "-------------------~%" canonical-id)
         (format t "~%~{~20a ~a~%~}~%"
                 (get-action-columns-and-headings
                  matching-action
-                 '(("Shortened Id" . short-id) ("Id" . id)
+                 '(("Short Id" . short-id) ("UUID" . id)
                    ("Description"  . description)
                    ("Created on" . created-on)
-                    ;; (format-timestring 'NIL
-                    ;;  (parse-timestring (car created-on)
-                    ;;   :format +iso-like-date-and-time-format+))
                    ("Action age" . action-age)
                    ("Wait until" . wait-until) ("Days to wait" . wait-days)
                    ("Due" . due-on) ("Due in (days)" . due-days)
                    ("Last modified on" . last-modified-on)
-                   ("Modified (days ago)" . last-modification-age))))))))
+                   ("Modified (days ago)" . last-modification-age))))
+        (when-let ((annotations (getf matching-action :annotations)))
+          (format t "~%Annotations:~%")
+          (format t "------------~%")
+          (format t "~{~a~%~}~%" annotations))))))
 
 (defun get-action-by-id (id &key (action-list (get-action-list)))
   (when id
@@ -603,6 +609,57 @@ and completed, even if some of them weren't managed from within Action!"
         :exists-action :append)
        (push completed-action *completed-actions-list*)
        uuid ))))
+
+(defun get-max-annotation-id (&key action-id action-list)
+  (flet ((max-annotation-id (action-list)
+           (apply #'max
+                  (mapcar #'(lambda (annotations)
+                              (getf annotations :annotation-id))
+                          (getf action-list :annotations)))))
+    (cond (action-id
+           (let ((canonical-id (string-upcase action-id)))
+             (when-let ((matching-action (get-action-by-id canonical-id)))
+               (max-annotation-id matching-action))))
+          ((and action-list (listp action-list))
+           (max-annotation-id action-list)))))
+
+(defun annotate-action (id note)
+  ""
+  (when (and (stringp id) (not (zerop (length id)))
+             (stringp note) (not (zerop (length note))))
+    (let ((canonical-id (string-upcase id)))
+      (when-let ((matching-action (get-action-by-id canonical-id)))
+        (let* ((updated-action (copy-list matching-action))
+               (annotations (getf updated-action :annotations)))
+          (if annotations
+              (setf (getf updated-action :annotations)
+                    (append annotations
+                            (list
+                             (list :annotation-id (1+
+                                                   (get-max-annotation-id
+                                                    :action-list updated-action))
+                                   :note note
+                                   :created-on (format-timestring 'NIL
+                                                                  (now))))))
+              (setf updated-action
+                    (append updated-action
+                            (list :annotations
+                                  (list
+                                   (list :annotation-id 1
+                                         :note note
+                                         :created-on (format-timestring 'NIL
+                                                                        (now))))))))
+          (and
+           (append-to-activity-log updated-action :ANNOTATE-ACTION
+                                   :old-action matching-action)
+           (set-action-list
+            (mapcar #'(lambda (action)
+                        (if
+                         (equal (get-action-by-id canonical-id) action)
+                         updated-action
+                         action))
+                    (get-action-list)))
+           canonical-id))))))
 
 (defun backup-file (data-file)
   ""

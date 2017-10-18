@@ -162,6 +162,20 @@ Use 'cmd --help to get command-specific help.")
                  (rest (rest remainder)) :separator " "))
                (format t "Activity ~a updated.~%" (second remainder))))
 
+             ;; annotate action
+             ((and (or (string= (first remainder) "annotate")
+                       (string= (first remainder) "annot")
+                       (string= (first remainder) "note"))
+                   (second remainder)
+                   (third remainder))
+              (and
+               (action:annotate-action
+                (second remainder)
+                (cl-strings:join 
+                 (rest (rest remainder)) :separator " "))
+               (format t "Activity ~a annotated.~%" (second remainder))))
+
+
              ;; priority
              ((and (or
                     (string= (first remainder) "priority")
