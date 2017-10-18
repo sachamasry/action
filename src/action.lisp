@@ -400,24 +400,24 @@
 (defun cli-list-actions (&key list-completed)
   (let ((today (today)))
     (flet ((format-header ()
-             (format t "ID Pri Wait Due Description~%")
-             (format t "-- --- ---- --- -----------~%"))
+             (format t "ID Pri Due Description~%")
+             (format t "-- --- --- -----------~%"))
            (format-action-list (&key list-completed)
              (if list-completed
                  (mapcar #'(lambda (action)
                              (get-action-columns action
-                                                 'id 'priority 'wait 'due 'description))
+                                                 'id 'priority 'due 'description))
                          (get-completed-actions-list))
                  (mapcar #'(lambda (action)
                              (get-action-columns
                               (calculate-action-information action)
-                              'short-id 'priority 'wait-days 'due-days 'description))
+                              'short-id 'priority 'due-days 'description))
                          (get-sorted-action-list
                           (get-filtered-action-list
                            (get-action-list)))))))
       (progn
         (format-header)
-        (format t "~:{~&~2A ~3d ~4<~a~> ~3<~a~> ~A~}"
+        (format t "~:{~&~2A ~3a ~3a ~A~}"
                 (format-action-list :list-completed list-completed))
         (terpri)))))
 
@@ -576,13 +576,18 @@
          (remove-action canonical-id))
         canonical-id))))
 
-(defun log-action (description &key (priority "") (time-estimated 0))
+(defun log-action (description &key (log-date NIL) (priority "") (time-estimated 0))
   "Log action which is already completed, without creating it first,
 then completing it. The purpose is to keep a log of actions undertaken
 and completed, even if some of them weren't managed from within Action!"
   (progn
     (lazy-load-completed-actions)
-    (let* ((timestamp (format-timestring 'NIL (now)))
+    (let* ((timestamp
+             (format-timestring 'NIL
+                                (if (and log-date
+                                         (parse-timestring log-date :fail-on-error NIL))
+                                    (parse-timestring log-date) 
+                                    (now))))
            (uuid
              (intern (format nil "~s" (make-v4-uuid))))
            (completed-action
@@ -590,7 +595,7 @@ and completed, even if some of them weren't managed from within Action!"
                    :time-estimated time-estimated :description description 
                    :created-on timestamp
                    :status "logged completed"
-                   :logged-completed-on timestamp)))
+                   :completed-on timestamp)))
       (and
        (append-to-activity-log completed-action :LOG-ACTION)
        (action/persistence:write-sexp-to-file

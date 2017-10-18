@@ -114,8 +114,15 @@ Use 'cmd --help to get command-specific help.")
              ((string= (first remainder) "log")
               (alexandria:when-let
                   ((id
-                    (action:log-action
-                     (cl-strings:join (rest remainder) :separator " "))))
+                    (if (and
+                         (local-time:parse-timestring
+                          (second remainder) :fail-on-error 'NIL)
+                         (not (zerop (length (third remainder)))))
+                        (action:log-action
+                         (cl-strings:join (cddr remainder) :separator " ")
+                         :log-date (second remainder))
+                        (action:log-action
+                         (cl-strings:join (rest remainder) :separator " ")))))
                 (format t "Logged completed activity ~a.~%" id)))
 
              ;; edit action
