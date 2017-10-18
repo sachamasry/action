@@ -4,12 +4,16 @@
   (:use :cl)
   (:import-from :local-time
                 #:now
-                #:format-timestring)
+                #:today
+                #:format-timestring
+                #:parse-timestring
+                #:timestamp-difference)
   (:import-from :uuid
                 #:make-uuid-from-string
                 #:uuid=
                 #:make-v4-uuid)
   (:import-from :alexandria
+                #:flatten
                 #:when-let)
   (:import-from :fad
                 #:directory-exists-p)
@@ -21,8 +25,9 @@
                 #:rm-file)
   (:export
    #:system-version
-   #:add-action
    #:cli-list-actions
+   #:cli-action-info
+   #:add-action
    #:delete-action
    #:purge-action
    #:edit-action
@@ -67,6 +72,10 @@
 
 ;; Ensure the directory exists, creating if if necessary
 (defparameter +action-data-directory+ ())
+
+(defparameter +iso-like-date-and-time-format+
+  '((:year 4) #\- (:month 2) #\- (:day 2) #\Space
+    (:hour 2) #\: (:min 2)))
 
 (defun set-data-directory (&key parent-dir
                              (data-dir "action" data-dir-supplied-p))
@@ -133,8 +142,8 @@
          (when (and (getf sublist :wait)
                     (>
                      (timestamp-whole-day-difference
-                      (local-time:today)
-                      (local-time:parse-timestring
+                      (today)
+                      (parse-timestring
                        (getf sublist :wait)))
                      0))
            t))
@@ -147,24 +156,24 @@
                  #'>
                  :key #'(lambda (list) 
                           (+ (action::timestamp-whole-day-difference
-                              (local-time:parse-timestring (getf list :created-on))
-                              (local-time:today))
+                              (parse-timestring (getf list :created-on))
+                              (today))
                              (if (integerp (getf list :priority))
                                  (- 100 (getf list :priority))
                                  0)
-                             (if (local-time:parse-timestring 
+                             (if (parse-timestring 
                                   (getf list :due) :fail-on-error ())
                                  (action::timestamp-whole-day-difference 
                                   (getf list :due) 
-                                  (local-time:today))
+                                  (today))
                                  0)
-                             (if (local-time:parse-timestring
+                             (if (parse-timestring
                                   (getf list :wait) 
                                   :fail-on-error ())
                                  (* -1 
                                     (action::timestamp-whole-day-difference
-                                     (local-time:today)
-                                     (local-time:parse-timestring
+                                     (today)
+                                     (parse-timestring
                                       (getf list :wait))))
                                  0))))))
 
@@ -285,56 +294,152 @@
   "Returns the number of whole days elapsed between time-a and time-b"
   (when (and time-a time-b)
     (let* ((seconds-in-day (* 60 60 24)))
-      (/ 
-       (local-time:timestamp-difference 
-        (if (stringp time-b)
-            (local-time:parse-timestring time-b)
-            time-b)
-        (if (stringp time-a)
-            (local-time:parse-timestring time-a)
-            time-a))
-        seconds-in-day))))
+      (ceiling
+       (/ 
+        (timestamp-difference 
+         (if (stringp time-b)
+             (parse-timestring time-b)
+             time-b)
+         (if (stringp time-a)
+             (parse-timestring time-a)
+             time-a))
+        seconds-in-day)))))
+
+(defun calculate-action-information (action-sublist)
+  ""
+  (when (listp action-sublist)
+    (let ((today (today)))
+      (append action-sublist
+              (list
+               :short-id (if (stringp (getf action-sublist :id))
+                             (shorten-id (intern (getf action-sublist :id)) 2)
+                             (shorten-id (getf action-sublist :id) 2))
+               :numeric-priority (if (stringp (getf action-sublist :priority))
+                                     0
+                                     (getf action-sublist :priority))
+               :action-age (timestamp-whole-day-difference
+                            (parse-timestring (getf action-sublist :created-on))
+                            today)
+               :last-modified-on (if (getf action-sublist :modified-on)
+                                     (getf action-sublist :modified-on)
+                                     "")
+               :last-modification-age (if (getf action-sublist :modified-on)
+                                          (timestamp-whole-day-difference
+                                           (parse-timestring
+                                            (getf action-sublist :modified-on))
+                                           today)
+                                          "")
+               :wait-until (if (parse-timestring
+                               (getf action-sublist :wait)
+                               :fail-on-error NIL)
+                               (parse-timestring
+                                (getf action-sublist :wait))
+                               "")
+               :wait-days (if (parse-timestring
+                               (getf action-sublist :wait)
+                               :fail-on-error NIL)
+                              (timestamp-whole-day-difference
+                               today
+                               (parse-timestring
+                                (getf action-sublist :wait)))
+                              "")
+               :due-on (if (parse-timestring
+                            (getf action-sublist :due)
+                            :fail-on-error NIL)
+                           (parse-timestring
+                            (getf action-sublist :due))
+                           "")
+               :due-days (if (parse-timestring
+                              (getf action-sublist :due)
+                              :fail-on-error NIL)
+                             (timestamp-whole-day-difference
+                              today
+                              (parse-timestring
+                               (getf action-sublist :due)))
+                             ""))))))
+
+(defun columns-to-keywords (column-list)
+  (mapcar #'(lambda (column)
+              (cond ((keywordp column) column)
+                    ((symbolp column) (intern (symbol-name column) :keyword))
+                    ((stringp column) (intern (string-upcase column) :keyword))))
+          column-list))
+
+(defun get-action-columns (action-sublist &rest columns)
+  ""
+  (let ((keyword-columns
+          (columns-to-keywords columns))
+        (calculated-list
+          (calculate-action-information action-sublist)))
+    (mapcar #'(lambda (column)
+                (getf calculated-list column))
+            keyword-columns)))
+
+(defun get-action-columns-and-headings (action-sublist columns-and-headings-list)
+  ""
+  (when (listp columns-and-headings-list)
+    (let* ((unzipped-list (loop for i
+                                  in columns-and-headings-list
+                                collect (car i) into label
+                                collect (cdr i) into column
+                                finally (return
+                                          (list label column))))
+           (keyword-columns
+             (columns-to-keywords (cadr unzipped-list)))
+           (calculated-list
+             (calculate-action-information action-sublist))
+           (returned-columns
+             (mapcar #'(lambda (column)
+                         (getf calculated-list column))
+                     keyword-columns)))
+      (flatten
+       (mapcar #'list
+               (car unzipped-list)
+               returned-columns)))))
 
 (defun cli-list-actions (&key list-completed)
-  (let ((today (local-time:today)))
+  (let ((today (today)))
     (flet ((format-header ()
              (format t "ID Pri Wait Due Description~%")
              (format t "-- --- ---- --- -----------~%"))
            (format-action-list (&key list-completed)
-             (mapcar
-              #'(lambda (action) (list
-                                  (if (stringp (getf action :id))
-                                      (shorten-id (intern (getf action :id)) 2)
-                                      (shorten-id (getf action :id) 2))
-                                  (if (stringp (getf action :priority))
-                                      0 (getf action :priority))
-                                  (if (local-time:parse-timestring
-                                       (getf action :wait)
-                                       :fail-on-error NIL)
-                                      (timestamp-whole-day-difference
-                                       today
-                                       (local-time:parse-timestring
-                                        (getf action :wait)))
-                                      "")
-                                  (if (local-time:parse-timestring
-                                       (getf action :due)
-                                       :fail-on-error NIL)
-                                      (timestamp-whole-day-difference
-                                       today
-                                       (local-time:parse-timestring
-                                        (getf action :due)))
-                                      "")
-                                  (getf action :description)))
-              (if list-completed
-                  (get-completed-actions-list)
-                  (get-sorted-action-list
-                   (get-filtered-action-list
-                    (get-action-list)))))))
+             (if list-completed
+                 (mapcar #'(lambda (action)
+                             (get-action-columns action
+                                                 'id 'priority 'wait 'due 'description))
+                         (get-completed-actions-list))
+                 (mapcar #'(lambda (action)
+                             (get-action-columns
+                              (calculate-action-information action)
+                              'short-id 'priority 'wait-days 'due-days 'description))
+                         (get-sorted-action-list
+                          (get-filtered-action-list
+                           (get-action-list)))))))
       (progn
         (format-header)
         (format t "~:{~&~2A ~3d ~4<~a~> ~3<~a~> ~A~}"
                 (format-action-list :list-completed list-completed))
         (terpri)))))
+
+(defun cli-action-info (id)
+  ""
+  (when id
+    (let ((canonical-id (string-upcase id)))
+      (when-let ((matching-action (get-action-by-id canonical-id)))
+        (format t "~%~{~20a ~a~%~}~%"
+                (get-action-columns-and-headings
+                 matching-action
+                 '(("Shortened Id" . short-id) ("Id" . id)
+                   ("Description"  . description)
+                   ("Created on" . created-on)
+                    ;; (format-timestring 'NIL
+                    ;;  (parse-timestring (car created-on)
+                    ;;   :format +iso-like-date-and-time-format+))
+                   ("Action age" . action-age)
+                   ("Wait until" . wait-until) ("Days to wait" . wait-days)
+                   ("Due" . due-on) ("Due in (days)" . due-days)
+                   ("Last modified on" . last-modified-on)
+                   ("Modified (days ago)" . last-modification-age))))))))
 
 (defun get-action-by-id (id &key (action-list (get-action-list)))
   (when id
@@ -418,12 +523,12 @@
             (setf (getf updated-action :priority) priority))
           (when time-estimated
             (setf (getf updated-action :time-estimated) time-estimated))
-          (when (and due (local-time:parse-timestring due :fail-on-error NIL))
+          (when (and due (parse-timestring due :fail-on-error NIL))
             (if (getf updated-action :due)
                 (setf (getf updated-action :due) due)
                 (setf updated-action
                       (append updated-action (list :due due)))))
-          (when (and wait (local-time:parse-timestring wait :fail-on-error NIL))
+          (when (and wait (parse-timestring wait :fail-on-error NIL))
             (if (getf updated-action :wait)
                 (setf (getf updated-action :wait) wait)
                 (setf updated-action

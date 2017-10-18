@@ -72,6 +72,12 @@ Use 'cmd --help to get command-specific help.")
                   (action:cli-list-actions :list-completed t)
                   (action:cli-list-actions)))
 
+             ;; action information
+             ((or (string= (first remainder) "information")
+                  (string= (first remainder) "info"))
+              (and (second remainder)
+                   (action:cli-action-info (second remainder))))
+
              ;; complete action
              ((and (or (string= (first remainder) "done")
                        (string= (first remainder) "finish")
