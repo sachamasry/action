@@ -38,6 +38,8 @@
    #:annotate-action
    #:denotate-action
    #:edit-annotation
+   #:start-action-time-log
+   #:stop-action-time-log
    #:backup-file
    #:set-data-directory))
 (in-package :action)
@@ -430,8 +432,8 @@
     (let ((canonical-id (string-upcase id)))
       (when-let ((matching-action (get-action-by-id canonical-id)))
         (format t "~%Task ~a information~%" canonical-id)
-        (format t "-------------------~%" canonical-id)
-        (format t "~%~{~20a ~a~%~}~%"
+        (format t "===================~%~%" canonical-id)
+        (format t "~{~20a ~a~%~}~%"
                 (get-action-columns-and-headings
                  matching-action
                  '(("Short Id" . short-id) ("UUID" . id)
@@ -443,9 +445,47 @@
                    ("Last modified on" . last-modified-on)
                    ("Modified (days ago)" . last-modification-age))))
         (when-let ((annotations (getf matching-action :annotations)))
-          (format t "~%Annotations:~%")
-          (format t "------------~%")
-          (format t "~{~a~%~}~%" annotations))))))
+          (format t "Annotations~%")
+          (format t "===========~%~%")
+          (format t "ID  Date and time     Note~%")
+          (format t "--  ----------------  -----~%")
+          (format t "~{~{~2d  ~16a  ~a ~%~}~}~%"
+                  (mapcar 
+                   #'(lambda (annotation)
+                       (list (getf annotation :annotation-id)
+                             (format-timestring 'NIL
+                                                (parse-timestring
+                                                 (getf annotation :created-on))
+                                                :format +iso-like-date-and-time-format+)
+                             (getf annotation :note)))
+                   annotations)))
+        (when-let ((time-log (getf matching-action :time-log)))
+          (format t "Time logged~%")
+          (format t "===========~%~%")
+          (format t "Start time        End time          Duration (hh:mm)~%")
+          (format t "----------------  ----------------  ----------------~%")
+          (format t "~{~{~16a  ~16a  ~2d:~2,'0d~%~}~}~%"
+                  (mapcar 
+                   #'(lambda (time-log)
+                       (list 
+                        (format-timestring 'NIL 
+                                                (parse-timestring (getf time-log :start))
+                                                :format +iso-like-date-and-time-format+)
+                        (if (getf time-log :stop) 
+                            (format-timestring 'NIL 
+                                               (parse-timestring (getf time-log :stop))
+                                               :format +iso-like-date-and-time-format+)
+                            "")
+                        (getf (format-time-duration
+                               (getf time-log :duration)) :hours)
+                        (getf (format-time-duration
+                               (getf time-log :duration)) :minutes)))
+                   time-log))
+          (format t "=== Total time logged (hh:mm): ~2d:~2,'0d ===~%"
+                  (getf (format-time-duration
+                         (get-action-time-logged :action-list matching-action)) :hours)
+                  (getf (format-time-duration
+                         (get-action-time-logged :action-list matching-action)) :minutes)))))))
 
 (defun get-action-by-id (id &key (action-list (get-action-list)))
   (when id
@@ -660,6 +700,108 @@ and completed, even if some of them weren't managed from within Action!"
                          action))
                     (get-action-list)))
            canonical-id))))))
+
+(defun get-incomplete-time-log (&key action-id action-list)
+  (flet ((incomplete-time-log (action-list)
+           (car
+            (remove-if #'null
+                       (mapcar
+                        #'(lambda (time-log) (when
+                                                 (and (null (getf time-log :stop))
+                                                      (zerop (getf time-log :duration)))
+                                               time-log))
+                        (getf action-list :time-log))))))
+    (cond (action-id
+           (let ((canonical-id (string-upcase action-id)))
+             (when-let ((matching-action (get-action-by-id canonical-id)))
+               (incomplete-time-log matching-action))))
+          ((and action-list (listp action-list))
+           (incomplete-time-log action-list)))))
+
+(defun get-action-time-logged (&key action-id action-list)
+  (flet ((time-logged (action-list)
+           (apply #'+
+                  (mapcar 
+                   #'(lambda (time-log)
+                       (getf time-log :duration))
+                   (getf action-list :time-log)))))
+    (cond (action-id
+           (let ((canonical-id (string-upcase action-id)))
+             (when-let ((matching-action (get-action-by-id canonical-id)))
+               (time-logged matching-action))))
+          ((and action-list (listp action-list))
+           (time-logged action-list)))))
+
+(defun format-time-duration (duration)
+  (list
+   :hours (floor (/ duration (* 60 60)))
+   :minutes (floor (/ duration 60))
+   :seconds (rem duration 60)))
+
+(defun log-action-time (id entry-type)
+  (when (and (stringp id) (not (zerop (length id)))
+             (keywordp entry-type))
+    (let ((canonical-id (string-upcase id)))
+      (when-let ((matching-action (get-action-by-id canonical-id)))
+        (let* ((updated-action (copy-list matching-action))
+               (time-log (getf updated-action :time-log)))
+          (if time-log
+              (cond ((eq entry-type :start)
+                     (unless (get-incomplete-time-log :action-list updated-action)
+                       (setf (getf updated-action :time-log)
+                             (append time-log
+                                     (list
+                                      (list :start (format-timestring 'NIL
+                                                                      (now))
+                                            :stop ()
+                                            :duration 0))))))
+                    ((eq entry-type :stop)
+                     (when (get-incomplete-time-log :action-list updated-action)
+                       (let* ((incomplete-time-log
+                                (get-incomplete-time-log :action-list updated-action))
+                              (timestamp (now))
+                              (duration
+                                (floor (local-time:timestamp-difference
+                                        timestamp
+                                        (parse-timestring
+                                         (getf incomplete-time-log :start))))))
+                         (setf
+                          (getf updated-action :time-log)
+                          (mapcar #'(lambda (time-log)
+                                      (if
+                                       (equal time-log incomplete-time-log)
+                                       (list
+                                        :start (getf time-log :start)
+                                        :stop (format-timestring 'NIL timestamp)
+                                        :duration duration)
+                                       time-log))
+                                  (getf updated-action :time-log)))))))
+              (when (eq entry-type :start)
+                (setf updated-action
+                      (append updated-action
+                              (list :time-log
+                                    (list
+                                     (list :start (format-timestring 'NIL
+                                                                     (now))
+                                           :stop ()
+                                           :duration 0)))))))
+          (and
+           (append-to-activity-log updated-action :LOG-ACTION-TIME
+                                   :old-action matching-action)
+           (set-action-list
+            (mapcar #'(lambda (action)
+                        (if
+                         (equal (get-action-by-id canonical-id) action)
+                         updated-action
+                         action))
+                    (get-action-list)))
+           canonical-id))))))
+
+(defun start-action-time-log (id)
+  (log-action-time id :start))
+
+(defun stop-action-time-log (id)
+  (log-action-time id :stop))
 
 (defun backup-file (data-file)
   ""

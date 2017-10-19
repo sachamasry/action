@@ -175,6 +175,25 @@ Use 'cmd --help to get command-specific help.")
                  (rest (rest remainder)) :separator " "))
                (format t "Activity ~a annotated.~%" (second remainder))))
 
+             ;; start action time log
+             ((and (or (string= (first remainder) "start")
+                       (string= (first remainder) "start-timer")
+                       (string= (first remainder) "sta"))
+                   (second remainder))
+              (and
+               (action:start-action-time-log
+                (second remainder))
+               (format t "Started timing work on activity ~a.~%" (second remainder))))
+
+             ;; stop action time log
+             ((and (or (string= (first remainder) "stop")
+                       (string= (first remainder) "stop-timer")
+                       (string= (first remainder) "sto"))
+                   (second remainder))
+              (and
+               (action:stop-action-time-log
+                (second remainder))
+               (format t "Stopped timing work on activity ~a.~%" (second remainder))))
 
              ;; priority
              ((and (or
