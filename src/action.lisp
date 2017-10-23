@@ -354,6 +354,22 @@
                            (parse-timestring
                             (getf action-sublist :due))
                            "")
+               :due-on-month (if (parse-timestring
+                                  (getf action-sublist :due)
+                                  :fail-on-error NIL)
+                                 (format-timestring NIL
+                                  (parse-timestring
+                                   (getf action-sublist :due))
+                                  :format '((:month 2)))
+                                 "")
+               :due-on-date (if (parse-timestring
+                                  (getf action-sublist :due)
+                                  :fail-on-error NIL)
+                                 (format-timestring NIL
+                                  (parse-timestring
+                                   (getf action-sublist :due))
+                                  :format '((:day 2)))
+                                 "")
                :due-days (if (parse-timestring
                               (getf action-sublist :due)
                               :fail-on-error NIL)
@@ -843,3 +859,50 @@ and completed, even if some of them weren't managed from within Action!"
 ;; In conclusion, I now believe that this is a premature optimisation
 ;; and an unnecessary complication and burden; it's much easier
 ;; by starting to serialize the native Lisp list to text.
+
+(defun generate-action-list-report ()
+  (with-open-file (file
+                   (action/filesystem-interface:construct-destination-path
+                    :source-path +action-data-directory+
+                    :destination-directory "reports"
+                    :destination-file-name "todolist"
+                    :destination-file-extension "tex")
+                   :direction :output
+                   :if-exists :supersede
+                   :if-does-not-exist :create)
+    (with-standard-io-syntax
+      (format file "~{~a~%~}"
+              (list
+               "\\def \\todonumber {13/10}"
+               "\\def \\todonumempty {0}"
+               "\\def \\todonumhide {0}"
+               "\\def \\todoyear {\\the\\year}"
+               "\\def \\todohelv {0}"
+               "\\def \\todomonofont {AnonymousPro}"
+               "\\def \\todoprint {"
+               (format nil "~{~{\\trd{~a}{0}{~d}{~a}{~a}{~a}{~a}{}~%~}~}"
+                       (cadr (format-action-list-for-report)))))
+      (dotimes (i (- 35 (car (format-action-list-for-report))))
+        (format file "\\trd{}{0}{}{}{}{}{}{}~%"))
+      (format file "~{~a~%~}"
+              '("\\arrayrulecolor{black}"
+                "}")))))
+
+(defun format-action-list-for-report ()
+  ""
+  (flet ((count-action-desc-lines (action-list)
+           (apply #'+ 
+                  (mapcar 
+                   #'(lambda (i) (ceiling (/ (length (nth 3 i)) 70)))
+                   action-list))))
+    (let ((formatted-action-list
+            (mapcar #'(lambda (action)
+                        (get-action-columns
+                         (calculate-action-information action)
+                         'short-id 'priority 'due-days 'description 'due-on-month 'due-on-date))
+                    (get-sorted-action-list
+                     (get-filtered-action-list
+                      (get-action-list))))))
+      (list
+       (count-action-desc-lines formatted-action-list)
+       formatted-action-list))))
