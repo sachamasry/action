@@ -2,6 +2,8 @@
 (defpackage action
   (:nicknames :act :ac)
   (:use :cl)
+  (:import-from :uiop
+                #:run-program)
   (:import-from :local-time
                 #:now
                 #:today
@@ -42,7 +44,8 @@
    #:start-action-time-log
    #:stop-action-time-log
    #:backup-file
-   #:set-data-directory))
+   #:set-data-directory
+   #:generate-action-list-report))
 (in-package :action)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -875,7 +878,11 @@ and completed, even if some of them weren't managed from within Action!"
       (with-standard-io-syntax
         (format file "~{~a~%~}"
                 (list
-                 "\\def \\todonumber {13/10}"
+                 (format nil "\\def \\todonumber {~a}"
+                         (format-timestring NIL (act::today)
+                                            :format '((:day 2) #\/
+                                                      (:month 2))))
+                 ;"\\def \\todonumber {13/10}"
                  "\\def \\todonumempty {0}"
                  "\\def \\todonumhide {0}"
                  "\\def \\todoyear {\\the\\year}"
@@ -910,8 +917,51 @@ and completed, even if some of them weren't managed from within Action!"
        (count-action-desc-lines formatted-action-list)
        formatted-action-list))))
 
+(defun run-cmd (command-list &key (output NIL))
+  (when (and (listp command-list)
+             (< 0 (length command-list)))
+    (multiple-value-bind (output-returned error-output return-value)
+        (run-program command-list
+                     :ignore-error-status t
+                     :output output)
+      (list output-returned error-output return-value))))
+
+(defun generate-action-list-report ()
+  (let ((latex-bin (run-cmd '("which" "lualatex")))
+        (report-file
+          (construct-report-file-path 
+           +action-data-directory+
+           :destination-file-name "todolist"
+           :destination-file-type "pdf")))
+    (when (zerop (third latex-bin))
+      (when-let ((tex-file-name 
+                  (namestring
+                   (third
+                    ;; generate-helper-files
+                    (generate-action-list-report-helper-files)))))
+
+        ;; generate-source-file
+        (generate-action-list-report-source-file)
+
+        ;; run lualatex
+        (when (zerop
+               (third
+                (run-cmd (list "lualatex"
+                               (concatenate 'string 
+                                            "-output-directory="
+                                            (directory-namestring report-file))
+                               tex-file-name))))
+          ;; check if pdf file has been generated, returning its full path
+          (and (probe-file report-file)
+               report-file))))))
+
 (defun generate-action-list-report-helper-files ()
-  (let ((tex-file
+  (let ((actions-file
+          (construct-report-file-path 
+           +action-data-directory+
+           :destination-file-name "todoentries"
+           :destination-file-type "tex"))
+        (tex-file
           (construct-report-file-path 
            +action-data-directory+
            :destination-file-name "todolist"
@@ -944,7 +994,8 @@ and completed, even if some of them weren't managed from within Action!"
                         "    %% 1 = include a todoentries.tex file (a sample is included with the distribution)"
                         "    \\def \\todousefile      {1}"
                         "    %% If you chose 1, type in the path here:"
-                        "    \\def \\todoentriespath  {./todoentries.tex} %../todoentries/todoentries.tex}"
+                        (format nil "    \\def \\todoentriespath  {~a}" actions-file)
+                        ;"    \\def \\todoentriespath  {./todoentries.tex} %../todoentries/todoentries.tex}"
                         "%% END SETTINGS IF YOU CHOSE 1 — IGNORE ANYTHING BELOW THIS POINT"
                         "%% If you chose 0, configure here:"
                         "    % Which todolist in the year is this? [0-99 inclusive]"
@@ -980,7 +1031,9 @@ and completed, even if some of them weren't managed from within Action!"
                         "\\def \\todosub  {\\hskip1em|\\kern-1.5pt–\\space}"
                         "\\fi"
                         "\\usepackage{luacode}"
-                        "\\luadirect{require(\"todolist.lua\")}"
+
+                        (format nil "\\luadirect{require(\"~a\")}" lua-file)
+                        ;"\\luadirect{require(\"todolist.lua\")}"
                         "\\setmonofont[]{\\todomonofont}"
                         "\\setcounter{secnumdepth}{5}"
                         "\\setcounter{tocdepth}{5}"
@@ -1092,4 +1145,5 @@ and completed, even if some of them weren't managed from within Action!"
                         "    end"
                         "end"))))
            lua-file)
-         t))))
+         t)
+     tex-file)))

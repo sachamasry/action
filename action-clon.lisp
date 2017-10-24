@@ -72,6 +72,24 @@ Use 'cmd --help to get command-specific help.")
                   (action:cli-list-actions :list-completed t)
                   (action:cli-list-actions)))
 
+             ;; print outstanding actions
+             ((or (string= (first remainder) "print")
+                  (string= (first remainder) "prin"))
+              (cond ((and (second remainder)
+                          (or (string= (second remainder) "")
+                              (string= (second remainder) "actions")
+                              (string= (second remainder) "outstanding")
+                              (string= (second remainder) "active")))
+                     (alexandria:when-let
+                         ((output-file (action:generate-action-list-report)))
+                     (format t "~a~%"
+                             (namestring output-file))))
+
+                    (t (alexandria:when-let
+                           ((output-file (action:generate-action-list-report)))
+                         (format t "~a~%"
+                                 (namestring output-file))))))
+
              ;; action information
              ((or (string= (first remainder) "information")
                   (string= (first remainder) "info"))

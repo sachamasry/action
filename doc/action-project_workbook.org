@@ -62,3 +62,17 @@ so that there is no proprietary hold over the stored data. All data will be
 recorded, in an append-only fashion, forever providing a log of all activities
 undertaken. 
 #+END_abstract
+
+* Windows
+
+In Unix-derived systems, is is easy to use lpd/lpr to print a file directly from 
+the command line. That feature exists in Windows too, but it's not activated by 
+default. To use it, activate it the following way:
+
+1. Use keyboard shortcut Win+x
+2. Select 'Apps and features'
+3. At the bottom of the list of installed programs, go to 'Programs and Features'
+4. Click on 'Turn Windows features on or off'
+5. Expand the 'Print and Document Services' tree
+6. Tick both 'LPD Print Service' and 'LPR Port Monitor'
+7. Click 'Ok' and wait for the components to install
