@@ -9,6 +9,12 @@
                 #:construct-file-name
                 #:copy-file
                 #:rm-file)
+  (:import-from :local-time
+                #:today
+                #:now
+                #:format-timestring
+                #:timestamp-to-universal
+                #:universal-to-timestamp)
   (:export #:write-sexp-to-file
            #:read-sexp-from-file
            #:create-file-snapshot
@@ -41,17 +47,21 @@
                                     (delimiter #\-))
   (when (and file
              (probe-file file))
-    (let ((snapshot-dir)
-          (timestamp
-            (local-time:format-timestring
-             nil (local-time:now)
-             :format '((:year 4) #\-
-                       (:month 2) #\-
-                       (:day 2) #\T
-                       (:hour 2) #\:
-                       (:min 2) #\: 
-                       (:sec 2) #\.
-                       (:usec 6)))))
+    (let* ((snapshot-dir)
+           (universal-time-now (get-universal-time))
+           (timestamp
+             (concatenate 'string
+                          (format-timestring
+                           nil (universal-to-timestamp
+                                universal-time-now)
+                           :format '((:year 4) #\-
+                                     (:month 2) #\-
+                                     (:day 2)))
+                          "."
+                          (write-to-string
+                           (- universal-time-now
+                              (timestamp-to-universal
+                               (today)))))))
       (multiple-value-bind (directory full-file-name file-name file-type)
           (split-path file)
         (let ((dest-file
@@ -74,8 +84,8 @@
   (when (directory-exists-p data-directory)
     (let ((reports-dir)
           (timestamp
-            (local-time:format-timestring
-             nil (local-time:now)
+            (format-timestring
+             nil (now)
              :format '((:year 4) #\-
                        (:month 2) #\-
                        (:day 2)))))
