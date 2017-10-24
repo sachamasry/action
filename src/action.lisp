@@ -20,7 +20,8 @@
   (:import-from :action/persistence
                 #:write-sexp-to-file
                 #:read-sexp-from-file
-                #:create-file-snapshot)
+                #:create-file-snapshot
+                #:construct-report-file-path)
   (:import-from :action/filesystem-interface
                 #:rm-file)
   (:export
@@ -860,33 +861,35 @@ and completed, even if some of them weren't managed from within Action!"
 ;; and an unnecessary complication and burden; it's much easier
 ;; by starting to serialize the native Lisp list to text.
 
-(defun generate-action-list-report ()
-  (with-open-file (file
-                   (action/filesystem-interface:construct-destination-path
-                    :source-path +action-data-directory+
-                    :destination-directory "reports"
-                    :destination-file-name "todolist"
-                    :destination-file-extension "tex")
-                   :direction :output
-                   :if-exists :supersede
-                   :if-does-not-exist :create)
-    (with-standard-io-syntax
-      (format file "~{~a~%~}"
-              (list
-               "\\def \\todonumber {13/10}"
-               "\\def \\todonumempty {0}"
-               "\\def \\todonumhide {0}"
-               "\\def \\todoyear {\\the\\year}"
-               "\\def \\todohelv {0}"
-               "\\def \\todomonofont {AnonymousPro}"
-               "\\def \\todoprint {"
-               (format nil "~{~{\\trd{~a}{0}{~d}{~a}{~a}{~a}{~a}{}~%~}~}"
-                       (cadr (format-action-list-for-report)))))
-      (dotimes (i (- 35 (car (format-action-list-for-report))))
-        (format file "\\trd{}{0}{}{}{}{}{}{}~%"))
-      (format file "~{~a~%~}"
-              '("\\arrayrulecolor{black}"
-                "}")))))
+(defun generate-action-list-report-source-file ()
+  (let ((actions-file
+          (construct-report-file-path 
+           +action-data-directory+
+           :destination-file-name "todoentries"
+           :destination-file-type "tex")))
+    (with-open-file (file
+                     actions-file
+                     :direction :output
+                     :if-exists :supersede
+                     :if-does-not-exist :create)
+      (with-standard-io-syntax
+        (format file "~{~a~%~}"
+                (list
+                 "\\def \\todonumber {13/10}"
+                 "\\def \\todonumempty {0}"
+                 "\\def \\todonumhide {0}"
+                 "\\def \\todoyear {\\the\\year}"
+                 "\\def \\todohelv {0}"
+                 "\\def \\todomonofont {AnonymousPro}"
+                 "\\def \\todoprint {"
+                 (format nil "~{~{\\trd{~a}{0}{~d}{~a}{~a}{~a}{~a}{}~%~}~}"
+                         (cadr (format-action-list-for-report)))))
+        (dotimes (i (- 35 (car (format-action-list-for-report))))
+          (format file "\\trd{}{0}{}{}{}{}{}{}~%"))
+        (format file "~{~a~%~}"
+                '("\\arrayrulecolor{black}"
+                  "}"))))
+    (probe-file actions-file)))
 
 (defun format-action-list-for-report ()
   ""
@@ -906,3 +909,187 @@ and completed, even if some of them weren't managed from within Action!"
       (list
        (count-action-desc-lines formatted-action-list)
        formatted-action-list))))
+
+(defun generate-action-list-report-helper-files ()
+  (let ((tex-file
+          (construct-report-file-path 
+           +action-data-directory+
+           :destination-file-name "todolist"
+           :destination-file-type "tex"))
+        (lua-file
+          (construct-report-file-path 
+           +action-data-directory+
+           :destination-file-name "todolist"
+           :destination-file-type "lua")))
+    (list
+     (if (not (probe-file tex-file))
+         (progn
+           (with-open-file (file
+                            tex-file
+                            :direction :output
+                            :if-exists :supersede
+                            :if-does-not-exist :create)
+             (with-standard-io-syntax
+               (format file "~{~a~%~}"
+                       (list
+                        "% !TEX TS-program = lualatex"
+                        "% !TEX encoding = UTF-8 Unicode"
+                        "\\documentclass[a4paper,english]{article}"
+                        "% LaTeX To Do List"
+                        "% Copyright © 2013–2017, Chris Warrick."
+                        "% See /LICENSE (in the distribution) for licensing information."
+                        "%%% SETTINGS FOR THE TODOLIST"
+                        "%% CHOOSE FIRST!"
+                        "    %% 0 = 35 empty fields and config comes from below"
+                        "    %% 1 = include a todoentries.tex file (a sample is included with the distribution)"
+                        "    \\def \\todousefile      {1}"
+                        "    %% If you chose 1, type in the path here:"
+                        "    \\def \\todoentriespath  {./todoentries.tex} %../todoentries/todoentries.tex}"
+                        "%% END SETTINGS IF YOU CHOSE 1 — IGNORE ANYTHING BELOW THIS POINT"
+                        "%% If you chose 0, configure here:"
+                        "    % Which todolist in the year is this? [0-99 inclusive]"
+                        "    \\def \\todonumber       {1}"
+                        "        % Or maybe you want to leave the number field empty [1]?"
+                        "        \\def \\todonumempty {1}"
+                        "        % Or hide it altogether?"
+                        "        \\def \\todonumhide  {0}"
+                        "    % Which year do you want displayed?"
+                        "    \\def \\todoyear         {\\the\\year}"
+                        "    % Do you want to use Helvetica Neue [1] or TeX Gyre Heros [0]?"
+                        "    \\def \\todohelv         {0}"
+                        "    % What is your favorite monospace font? (not used unless you do it in your todolist.tex)"
+                        "    \\def \\todomonofont     {AnonymousPro}"
+                        "%%% END SETTINGS FOR THE TODOLIST"
+                        "\\ifnum\\todousefile=1"
+                        "\\input{\\todoentriespath}"
+                        "\\else"
+                        "\\def \\todoprint{\\tr{1}\\tr{2}\\tr{3}\\tr{4}\\tr{5}\\tr{6}\\tr{7}\\tr{8}\\tr{9}\\tr{10}\\tr{11}\\tr{12}\\tr{13}\\tr{14}\\tr{15}\\tr{16}\\tr{17}\\tr{18}\\tr{19}\\tr{20}\\tr{21}\\tr{22}\\tr{23}\\tr{24}\\tr{25}\\tr{26}\\tr{27}\\tr{28}\\tr{29}\\tr{30}\\tr{31}\\tr{32}\\tr{33}\\tr{34}\\arrayrulecolor{black}\\tr{35}\\nr{}\\nr{}\\nr{}}"
+                        "\\fi"
+                        "\\usepackage{fontspec}"
+                        "\\usepackage{polyglossia}"
+                        "% Sadly, Helvetica Neue and TeX Gyre Heros are not metrics-compatible."
+                        "\\ifnum\\todohelv=1"
+                        "\\setmainfont[Ligatures=TeX]{Helvetica Neue OTF}"
+                        "\\def \\todosize {30.03em}"
+                        "\\def \\todotitleskip {6.91pt}"
+                        "\\def \\todosub  {\\hskip1em|\\kern-2.5pt—\\space}"
+                        "\\else"
+                        "\\setmainfont[Ligatures=TeX]{TeX Gyre Heros}"
+                        "\\def \\todosize {29.955em}"
+                        "\\def \\todotitleskip {5.91pt}"
+                        "\\def \\todosub  {\\hskip1em|\\kern-1.5pt–\\space}"
+                        "\\fi"
+                        "\\usepackage{luacode}"
+                        "\\luadirect{require(\"todolist.lua\")}"
+                        "\\setmonofont[]{\\todomonofont}"
+                        "\\setcounter{secnumdepth}{5}"
+                        "\\setcounter{tocdepth}{5}"
+                        "\\usepackage{color}"
+                        "\\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}"
+                        "\\usepackage{setspace}"
+                        "\\doublespacing"
+                        "\\usepackage[parfill]{parskip}"
+                        "\\setlength{\\parskip}{\\smallskipamount}"
+                        "\\setlength{\\parindent}{0pt}"
+                        "\\usepackage[unicode, colorlinks, breaklinks, pdftitle={Actions To Do},pdfauthor={Action!}]{hyperref}"
+                        "\\usepackage{upquote}"
+                        "\\date{}"
+                        "\\makeatother"
+                        "\\usepackage[top=0.7cm, bottom=0cm, left=0.5cm, right=2cm]{geometry}"
+                        "\\nonfrenchspacing"
+                        "\\usepackage{titlesec}"
+                        "\\setlength{\\fboxsep}{1pt}"
+                        "\\newcommand{\\sps}[0]{\\hskip2pt}"
+                        "\\definecolor{ngray}{gray}{0.30}"
+                        "\\definecolor{tabgray}{gray}{0.65}"
+                        "\\definecolor{backgray}{gray}{0.55}"
+                        "\\definecolor{dategray}{gray}{0.85}"
+                        "\\newcommand{\\fcb}[1]{\\fcolorbox{backgray}{black}{#1}}"
+                        "\\newcommand{\\trd}[8]{\\luadirect{todorow(\\luastringN{#1}, \\luastringN{#2}, \\luastringN{#3}, \\luastringN{#4}, \\luastringN{#5}, \\luastringN{#6}, \\luastringN{#7}, \\luastringN{#8})}}"
+                        "\\newcommand{\\tr}[1]{\\luadirect{todorow(#1, \"\", \"\", \"\", \"\", \"\", \"\", \"\")}}"
+                        "\\newcommand{\\nr}[1]{\\arrayrulecolor{tabgray}\\multicolumn{10}{l}{#1}\\\\\\hline}"
+                        "\\newcommand{\\p}[1]{\\texttt{#1}}"
+                        "\\makeatletter"
+                        "\\begin{document}"
+                        "\\Huge{} To Do\\hskip\\todotitleskip\\large\\ifnum\\todonumhide=0\\color{tabgray}\\fbox{\\hskip0.388em\\luadirect{todonumberformat(\\luastring{\\todonumber}, \\luastring{\\todonumempty})}}\\hskip0.1em/\\todoyear\\color{black}\\fi\\normalsize"
+                        "\\titlerule\\vspace{0.25pc}"
+                        "\\thispagestyle{empty}"
+                        "\\ifnum\\todonumhide=0"
+                        "\\vskip-0.88em"
+                        "\\else"
+                        "\\vskip-0.755em"
+                        "\\fi"
+                        "\\begin{tabular}{!{\\color{black}\\vline}r!{\\color{tabgray}\\vline}@{}c@{}!{\\color{tabgray}\\vline}@{}c@{}!{\\color{tabgray}\\vline}@{}p{2em}@{}!{\\color{tabgray}\\vline}p{\\todosize}!{\\color{tabgray}\\vline}@{}c@{}!{\\color{tabgray}\\vline}@{}p{1.5em}@{}!{\\color{dategray}\\vline}@{}p{1.5em}@{}!{\\color{tabgray}\\vline}@{}p{1.5em}@{}!{\\color{dategray}\\vline}@{}p{1.5em}@{}!{\\color{black}\\vline}p{7em}}"
+                        "\\# & \\centering C & \\centering Priority & \\centering Tag & Task &\\multicolumn{5}{c|}{Due Date} & Notes"
+                        "\\\\\\hline \\arrayrulecolor{tabgray}"
+                        "\\todoprint"
+                        "\\end{tabular}"
+                        "\\end{document}"))))
+           tex-file)
+         t)
+
+     (if (not (probe-file lua-file))
+         (progn
+           (with-open-file (file
+                            lua-file
+                            :direction :output
+                            :if-exists :supersede
+                            :if-does-not-exist :create)
+             (with-standard-io-syntax
+               (format file "~{~a~%~}"
+                       (list
+                        "-- LaTeX To Do List (Lua companion)"
+                        "-- Copyright © 2013–2017, Chris Warrick."
+                        "-- See /LICENSE (in the distribution) for licensing information."
+                        "PLACEHOLDER = \"\\\\textcolor{backgray}{%s}\""
+                        "function todorow(number, completed, priority, tag, task, month, day, notes)"
+                        "    if completed == \"1\" then"
+                        "        completed_entry = \"\\\\fcb{C}\""
+                        "    else"
+                        "        completed_entry = \"\\\\fbox{C}\""
+                        "    end"
+                        "    if priority == \"1\" then"
+                        "        priority_entry = \"\\\\sps\\\\fcb{1}\\\\sps\\\\fbox{2}\\\\sps\\\\fbox{3}\\\\sps\""
+                        "    elseif priority == \"2\" then"
+                        "        priority_entry = \"\\\\sps\\\\fbox{1}\\\\sps\\\\fcb{2}\\\\sps\\\\fbox{3}\\\\sps\""
+                        "    elseif priority == \"3\" then"
+                        "        priority_entry = \"\\\\sps\\\\fbox{1}\\\\sps\\\\fbox{2}\\\\sps\\\\fcb{3}\\\\sps\""
+                        "    else"
+                        "        priority_entry = \"\\\\sps\\\\fbox{1}\\\\sps\\\\fbox{2}\\\\sps\\\\fbox{3}\\\\sps\""
+                        "    end"
+                        "    if tag == \"\" then"
+                        "        tag = string.format(PLACEHOLDER, \"T\")"
+                        "    end"
+                        "    if month == \"\" then"
+                        "        month1 = string.format(PLACEHOLDER, \"M\")"
+                        "        month2 = month1"
+                        "    else"
+                        "        if string.len(month) == 1 then"
+                        "            month = \"0\" .. month"
+                        "        end"
+                        "        month1 = string.sub(month, 1, 1)"
+                        "        month2 = string.sub(month, 2, 2)"
+                        "    end"
+                        "    if day == \"\" then"
+                        "        day1 = string.format(PLACEHOLDER, \"D\")"
+                        "        day2 = day1"
+                        "    else"
+                        "        if string.len(day) == 1 then"
+                        "            day = \"0\" .. day"
+                        "        end"
+                        "        day1 = string.sub(day, 1, 1)"
+                        "        day2 = string.sub(day, 2, 2)"
+                        "    end"
+                        "    tex.print(string.format([[%s&\\centering\\textcolor{backgray}{\\sps%s\\sps}&\\textcolor{backgray}{%s}&\\centering{}%s&%s&\\phantom{|}\\todoyear\\phantom{|}&\\centering{}%s&\\centering{}%s&\\centering{}%s&\\centering{}%s&%s\\\\\\hline]],"
+                        "        number, completed_entry, priority_entry, tag, task, month1, month2, day1, day2, notes))"
+                        "end"
+                        "function todonumberformat(number_s, empty)"
+                        "    if empty == \"1\" or number_s == \"\" then"
+                        "        tex.print([[\\color{white}00]])"
+                        "    else"
+                        "        number = number_s"
+                        "        tex.print(string.format([[\\color{ngray}%s]], number))"
+                        "    end"
+                        "end"))))
+           lua-file)
+         t))))

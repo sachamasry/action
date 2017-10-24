@@ -1,6 +1,8 @@
 (in-package :cl-user)
 (defpackage :action/persistence
   (:use :cl)
+  (:import-from :fad
+                #:directory-exists-p)
   (:import-from :action/filesystem-interface
                 #:split-path
                 #:construct-destination-path
@@ -9,7 +11,8 @@
                 #:rm-file)
   (:export #:write-sexp-to-file
            #:read-sexp-from-file
-           #:create-file-snapshot))
+           #:create-file-snapshot
+           #:construct-report-file-path))
 (in-package :action/persistence)
 
 (defvar *keyword-package* (find-package :keyword))
@@ -63,3 +66,23 @@
           (and 
            (copy-file file dest-file)
            (probe-file dest-file)))))))
+
+(defun construct-report-file-path (data-directory
+                                &key (destination-directory "reports")
+                                  destination-file-name destination-file-type
+                                  (delimiter #\-))
+  (when (directory-exists-p data-directory)
+    (let ((reports-dir)
+          (timestamp
+            (local-time:format-timestring
+             nil (local-time:now)
+             :format '((:year 4) #\-
+                       (:month 2) #\-
+                       (:day 2)))))
+      (let ((destination-file-path
+              (construct-destination-path
+               :source-path data-directory
+               :destination-directory destination-directory
+               :destination-file-name destination-file-name
+               :destination-file-extension destination-file-type)))
+        destination-file-path))))
