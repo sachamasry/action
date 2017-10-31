@@ -947,6 +947,39 @@ and completed, even if some of them weren't managed from within Action!"
        (count-action-desc-lines formatted-action-list)
        formatted-action-list))))
 
+(defun format-annotations-list-for-report ()
+  ""
+  (labels ((get-annotated-actions ()
+           (remove-if-not
+            #'(lambda (sublist)
+                (getf sublist :annotations))
+            (get-sorted-action-list
+             (get-filtered-action-list
+              (get-action-list)))))
+           (intermediate-annotations-list ()
+             (mapcar 
+              #'(lambda (sublist)
+                  (get-action-columns
+                   (calculate-action-information sublist)
+                   'short-id 'annotations))
+              (get-annotated-actions)))
+           (formatted-annotations-list ()
+               (mapcar 
+                #'(lambda (sublist)
+                    (list (car sublist)
+                          (mapcar #'(lambda (subsublist)
+                                      (list (getf subsublist :annotation-id)
+                                            (getf subsublist :note)
+                                            (format-timestring nil
+                                                               (parse-timestring
+                                                                (getf subsublist :created-on))
+                                                               :format '(:ordinal-day #\Space
+                                                                         :long-month #\Space
+                                                                         :year))))
+                                  (cadr sublist))))
+                (intermediate-annotations-list))))
+    (formatted-annotations-list)))
+
 (defun run-cmd (command-list &key (output NIL))
   (when (and (listp command-list)
              (< 0 (length command-list)))
@@ -1061,9 +1094,9 @@ and completed, even if some of them weren't managed from within Action!"
                         "\\newfontfamily\\subheadfont[Ligatures=TeX]{Advocate C43}"
                         "\\makeatletter"
                         "\\begin{document}"
-                        "{\\headingdatefont\\fontsize{36pt}{30pt}\\selectfont\\reportday\\par}"
-                        "{\\headingthinfont\\fontsize{18pt}{14pt}\\selectfont\\reportlongweekdayname\\\\\\reportlongmonthname\\hskip0.5ex\\reportyear\\par}"
-                        "\\vspace{0.75em}"
+                        "{\\headingdatefont\\fontsize{36pt}{36pt}\\selectfont\\reportday\\par}"
+                        "{\\headingthinfont\\fontsize{18pt}{24pt}\\selectfont\\reportlongweekdayname\\\\\\reportlongmonthname\\hskip0.5ex\\reportyear\\par}"
+                        "\\vspace{2em}"
                         "{\\subheadfont\\fontsize{16pt}{12pt}\\selectfont ACTION LIST\\par}"
                         "\\vspace{0.15em}"
                         "\\thispagestyle{empty}"
