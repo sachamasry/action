@@ -358,6 +358,14 @@
                            (parse-timestring
                             (getf action-sublist :due))
                            "")
+               :due-on-year (if (parse-timestring
+                                 (getf action-sublist :due)
+                                 :fail-on-error NIL)
+                                (format-timestring NIL
+                                                   (parse-timestring
+                                                    (getf action-sublist :due))
+                                                   :format '((:year 4)))
+                                "")
                :due-on-month (if (parse-timestring
                                   (getf action-sublist :due)
                                   :fail-on-error NIL)
@@ -868,7 +876,7 @@ and completed, even if some of them weren't managed from within Action!"
   (let ((actions-file
           (construct-report-file-path 
            +action-data-directory+
-           :destination-file-name "todoentries"
+           :destination-file-name "action-entries"
            :destination-file-type "tex")))
     (with-open-file (file
                      actions-file
@@ -878,21 +886,24 @@ and completed, even if some of them weren't managed from within Action!"
       (with-standard-io-syntax
         (format file "~{~a~%~}"
                 (list
-                 (format nil "\\def \\todonumber {~a}"
-                         (format-timestring NIL (act::today)
-                                            :format '((:day 2) #\/
-                                                      (:month 2))))
-                 ;"\\def \\todonumber {13/10}"
-                 "\\def \\todonumempty {0}"
-                 "\\def \\todonumhide {0}"
-                 "\\def \\todoyear {\\the\\year}"
-                 "\\def \\todohelv {0}"
-                 "\\def \\todomonofont {AnonymousPro}"
-                 "\\def \\todoprint {"
-                 (format nil "~{~{\\trd{~a}{0}{~d}{~a}{~a}{~a}{~a}{}~%~}~}"
+                 (format-timestring nil 
+                                    (today)
+                                    :format  '("\\def \\reportyear {" :year "}" #\Newline
+                                               "\\def \\reportmonthnum {" :month "}" #\Newline
+                                               "\\def \\reportlongmonthname {" :long-month "}" #\Newline
+                                               "\\def \\reportshortmonthname {" :short-month "}" #\Newline
+                                               "\\def \\reportday {" :day "}" #\Newline
+                                               "\\def \\reportweekdaynum {" :weekday "}" #\Newline
+                                               "\\def \\reportordinalday {" :ordinal-day "}" #\Newline
+                                               "\\def \\reportlongweekdayname {" :long-weekday "}" #\Newline
+                                               "\\def \\reportshortweekdayname {" :short-weekday "}" #\Newline
+                                               "\\def \\reportminimalweekdayname {" :minimal-weekday "}" #\Newline
+                                               "\\def \\reportweeknum {" :iso-week-number "}" #\Newline))
+                 "\\def \\actionprint {"
+                 (format nil "~{~{\\trd{~a}{0}{~d}{~a}{~a}{~a}{~a}{~a}{}~%~}~}"
                          (cadr (format-action-list-for-report)))))
-        (dotimes (i (- 35 (car (format-action-list-for-report))))
-          (format file "\\trd{}{0}{}{}{}{}{}{}~%"))
+        (dotimes (i (- 30 (car (format-action-list-for-report))))
+          (format file "\\trd{}{0}{}{}{}{}{}{}{}~%"))
         (format file "~{~a~%~}"
                 '("\\arrayrulecolor{black}"
                   "}"))))
@@ -909,7 +920,8 @@ and completed, even if some of them weren't managed from within Action!"
             (mapcar #'(lambda (action)
                         (get-action-columns
                          (calculate-action-information action)
-                         'short-id 'priority 'due-days 'description 'due-on-month 'due-on-date))
+                         'short-id 'priority 'due-days 'description 'due-on-year
+                         'due-on-month 'due-on-date))
                     (get-sorted-action-list
                      (get-filtered-action-list
                       (get-action-list))))))
@@ -931,7 +943,7 @@ and completed, even if some of them weren't managed from within Action!"
         (report-file
           (construct-report-file-path 
            +action-data-directory+
-           :destination-file-name "todolist"
+           :destination-file-name "action-list"
            :destination-file-type "pdf")))
     (when (zerop (third latex-bin))
       (when-let ((tex-file-name 
@@ -959,17 +971,17 @@ and completed, even if some of them weren't managed from within Action!"
   (let ((actions-file
           (construct-report-file-path 
            +action-data-directory+
-           :destination-file-name "todoentries"
+           :destination-file-name "action-entries"
            :destination-file-type "tex"))
         (tex-file
           (construct-report-file-path 
            +action-data-directory+
-           :destination-file-name "todolist"
+           :destination-file-name "action-list"
            :destination-file-type "tex"))
         (lua-file
           (construct-report-file-path 
            +action-data-directory+
-           :destination-file-name "todolist"
+           :destination-file-name "action-list"
            :destination-file-type "lua")))
     (list
      (if (not (probe-file tex-file))
@@ -988,69 +1000,32 @@ and completed, even if some of them weren't managed from within Action!"
                         "% LaTeX To Do List"
                         "% Copyright © 2013–2017, Chris Warrick."
                         "% See /LICENSE (in the distribution) for licensing information."
-                        "%%% SETTINGS FOR THE TODOLIST"
-                        "%% CHOOSE FIRST!"
-                        "    %% 0 = 35 empty fields and config comes from below"
-                        "    %% 1 = include a todoentries.tex file (a sample is included with the distribution)"
-                        "    \\def \\todousefile      {1}"
-                        "    %% If you chose 1, type in the path here:"
-                        (format nil "    \\def \\todoentriespath  {~a}" actions-file)
-                        ;"    \\def \\todoentriespath  {./todoentries.tex} %../todoentries/todoentries.tex}"
-                        "%% END SETTINGS IF YOU CHOSE 1 — IGNORE ANYTHING BELOW THIS POINT"
-                        "%% If you chose 0, configure here:"
-                        "    % Which todolist in the year is this? [0-99 inclusive]"
-                        "    \\def \\todonumber       {1}"
-                        "        % Or maybe you want to leave the number field empty [1]?"
-                        "        \\def \\todonumempty {1}"
-                        "        % Or hide it altogether?"
-                        "        \\def \\todonumhide  {0}"
-                        "    % Which year do you want displayed?"
-                        "    \\def \\todoyear         {\\the\\year}"
-                        "    % Do you want to use Helvetica Neue [1] or TeX Gyre Heros [0]?"
-                        "    \\def \\todohelv         {0}"
-                        "    % What is your favorite monospace font? (not used unless you do it in your todolist.tex)"
-                        "    \\def \\todomonofont     {AnonymousPro}"
-                        "%%% END SETTINGS FOR THE TODOLIST"
-                        "\\ifnum\\todousefile=1"
-                        "\\input{\\todoentriespath}"
-                        "\\else"
-                        "\\def \\todoprint{\\tr{1}\\tr{2}\\tr{3}\\tr{4}\\tr{5}\\tr{6}\\tr{7}\\tr{8}\\tr{9}\\tr{10}\\tr{11}\\tr{12}\\tr{13}\\tr{14}\\tr{15}\\tr{16}\\tr{17}\\tr{18}\\tr{19}\\tr{20}\\tr{21}\\tr{22}\\tr{23}\\tr{24}\\tr{25}\\tr{26}\\tr{27}\\tr{28}\\tr{29}\\tr{30}\\tr{31}\\tr{32}\\tr{33}\\tr{34}\\arrayrulecolor{black}\\tr{35}\\nr{}\\nr{}\\nr{}}"
-                        "\\fi"
+                        (format nil "\\def \\actionentriespath  {~a}" actions-file)
+                        "\\def \\monofont     {AnonymousPro}"
+                        "\\input{\\actionentriespath}"
                         "\\usepackage{fontspec}"
                         "\\usepackage{polyglossia}"
-                        "% Sadly, Helvetica Neue and TeX Gyre Heros are not metrics-compatible."
-                        "\\ifnum\\todohelv=1"
-                        "\\setmainfont[Ligatures=TeX]{Helvetica Neue OTF}"
-                        "\\def \\todosize {30.03em}"
-                        "\\def \\todotitleskip {6.91pt}"
-                        "\\def \\todosub  {\\hskip1em|\\kern-2.5pt---\\space}"
-                        ;"\\def \\todosub  {\\hskip1em|\\kern-2.5pt—\\space}"
-                        "\\else"
-                        "\\setmainfont[Ligatures=TeX]{TeX Gyre Heros}"
-                        "\\def \\todosize {29.955em}"
-                        "\\def \\todotitleskip {5.91pt}"
-                        "\\def \\todosub  {\\hskip1em|\\kern-1.5pt--\\space}"
-                        ;"\\def \\todosub  {\\hskip1em|\\kern-1.5pt–\\space}"
-                        "\\fi"
+                        "\\setmainfont[Ligatures=TeX]{NormativeLt-Regular}" ; Use Advocate's condensed typeface
+                        "\\def \\mainfontsize {29.955em}"
+                        "\\def \\titleskip {5.91pt}"
+                        "\\def \\actionsub  {\\hskip1em|\\kern-1.5pt--\\space}"
                         "\\usepackage{luacode}"
-
                         (format nil "\\luadirect{require(\"~a\")}" lua-file)
-                        ;"\\luadirect{require(\"todolist.lua\")}"
-                        "\\setmonofont[]{\\todomonofont}"
+                        "\\setmonofont[]{\\monofont}"
                         "\\setcounter{secnumdepth}{5}"
                         "\\setcounter{tocdepth}{5}"
                         "\\usepackage{color}"
                         "\\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}"
                         "\\usepackage{setspace}"
-                        "\\doublespacing"
+                        "\\linespread{1.50}" ; Reduce linespacing from double
                         "\\usepackage[parfill]{parskip}"
                         "\\setlength{\\parskip}{\\smallskipamount}"
                         "\\setlength{\\parindent}{0pt}"
-                        "\\usepackage[unicode, colorlinks, breaklinks, pdftitle={Actions To Do},pdfauthor={Action!}]{hyperref}"
+                        "\\usepackage[unicode, colorlinks, breaklinks, pdftitle={Action! Daily planner},pdfauthor={Action!}]{hyperref}"
                         "\\usepackage{upquote}"
                         "\\date{}"
                         "\\makeatother"
-                        "\\usepackage[top=0.7cm, bottom=0cm, left=0.5cm, right=2cm]{geometry}"
+                        "\\usepackage[twoside=true,total={16.15cm,24.23cm},top=1.615cm,inner=2.6cm,bottom=3.231cm,outer=2.245cm]{geometry}"
                         "\\nonfrenchspacing"
                         "\\usepackage{titlesec}"
                         "\\setlength{\\fboxsep}{1pt}"
@@ -1060,24 +1035,25 @@ and completed, even if some of them weren't managed from within Action!"
                         "\\definecolor{backgray}{gray}{0.55}"
                         "\\definecolor{dategray}{gray}{0.85}"
                         "\\newcommand{\\fcb}[1]{\\fcolorbox{backgray}{black}{#1}}"
-                        "\\newcommand{\\trd}[8]{\\luadirect{todorow(\\luastringN{#1}, \\luastringN{#2}, \\luastringN{#3}, \\luastringN{#4}, \\luastringN{#5}, \\luastringN{#6}, \\luastringN{#7}, \\luastringN{#8})}}"
-                        "\\newcommand{\\tr}[1]{\\luadirect{todorow(#1, \"\", \"\", \"\", \"\", \"\", \"\", \"\")}}"
+                        "\\newcommand{\\trd}[8]{\\luadirect{actionrow(\\luastringN{#1}, \\luastringN{#2}, \\luastringN{#3}, \\luastringN{#4}, \\luastringN{#5}, \\luastringN{#6}, \\luastringN{#7}, \\luastringN{#8})}}"
+                        "\\newcommand{\\tr}[1]{\\luadirect{actionrow(#1, \"\", \"\", \"\", \"\", \"\", \"\", \"\")}}"
                         "\\newcommand{\\nr}[1]{\\arrayrulecolor{tabgray}\\multicolumn{10}{l}{#1}\\\\\\hline}"
                         "\\newcommand{\\p}[1]{\\texttt{#1}}"
+                        "\\newfontfamily\\headingdatefont[Ligatures=TeX]{NormativeLt-Regular}"
+                        "\\newfontfamily\\headingthinfont[Ligatures=TeX]{NormativeLt-Light}"
+                        "\\newfontfamily\\subheadfont[Ligatures=TeX]{Advocate C43}"
                         "\\makeatletter"
                         "\\begin{document}"
-                        "\\Huge{} To Do\\hskip\\todotitleskip\\large\\ifnum\\todonumhide=0\\color{tabgray}\\fbox{\\hskip0.388em\\luadirect{todonumberformat(\\luastring{\\todonumber}, \\luastring{\\todonumempty})}}\\hskip0.1em/\\todoyear\\color{black}\\fi\\normalsize"
-                        "\\titlerule\\vspace{0.25pc}"
+                        "{\\headingdatefont\\fontsize{36pt}{30pt}\\selectfont\\reportday\\par}"
+                        "{\\headingthinfont\\fontsize{18pt}{18pt}\\selectfont\\reportlongweekdayname\\\\\\reportlongmonthname\\hskip0.5ex\\reportyear\\par}"
+                        "\\vspace{0.75em}"
+                        "{\\subheadfont\\fontsize{16pt}{12pt}\\selectfont ACTION LIST\\par}"
+                        "\\vspace{0.15em}"
                         "\\thispagestyle{empty}"
-                        "\\ifnum\\todonumhide=0"
-                        "\\vskip-0.88em"
-                        "\\else"
-                        "\\vskip-0.755em"
-                        "\\fi"
-                        "\\begin{tabular}{!{\\color{black}\\vline}r!{\\color{tabgray}\\vline}@{}c@{}!{\\color{tabgray}\\vline}@{}c@{}!{\\color{tabgray}\\vline}@{}p{2em}@{}!{\\color{tabgray}\\vline}p{\\todosize}!{\\color{tabgray}\\vline}@{}c@{}!{\\color{tabgray}\\vline}@{}p{1.5em}@{}!{\\color{dategray}\\vline}@{}p{1.5em}@{}!{\\color{tabgray}\\vline}@{}p{1.5em}@{}!{\\color{dategray}\\vline}@{}p{1.5em}@{}!{\\color{black}\\vline}p{7em}}"
-                        "\\# & \\centering C & \\centering Priority & \\centering Tag & Task &\\multicolumn{5}{c|}{Due Date} & Notes"
+                        "\\begin{tabular}{@{}p{1.5em}@{} @{}c@{} @{}c@{} @{}p{3em}@{} p{\\mainfontsize} @{}c@{} @{}p{1em}@{} @{}p{1em}@{}  @{}p{1em}@{} @{}p{1em}@{}}"
+                        "\\# & \\centering C & \\centering Priority & \\centering Time & Task &\\multicolumn{5}{l}{Due Date}"
                         "\\\\\\hline \\arrayrulecolor{tabgray}"
-                        "\\todoprint"
+                        "\\actionprint"
                         "\\end{tabular}"
                         "\\end{document}"))))
            tex-file)
@@ -1097,7 +1073,7 @@ and completed, even if some of them weren't managed from within Action!"
                         "-- Copyright © 2013–2017, Chris Warrick."
                         "-- See /LICENSE (in the distribution) for licensing information."
                         "PLACEHOLDER = \"\\\\textcolor{backgray}{%s}\""
-                        "function todorow(number, completed, priority, tag, task, month, day, notes)"
+                        "function actionrow(number, completed, priority, time, task, year, month, day)"
                         "    if completed == \"1\" then"
                         "        completed_entry = \"\\\\fcb{C}\""
                         "    else"
@@ -1112,8 +1088,13 @@ and completed, even if some of them weren't managed from within Action!"
                         "    else"
                         "        priority_entry = \"\\\\sps\\\\fbox{1}\\\\sps\\\\fbox{2}\\\\sps\\\\fbox{3}\\\\sps\""
                         "    end"
-                        "    if tag == \"\" then"
-                        "        tag = string.format(PLACEHOLDER, \"T\")"
+                        "    if time == \"\" then"
+                        "        time = string.format(PLACEHOLDER, \"   \")"
+                        "    end"
+                        "    if year == \"\" then"
+                        "        due_year = string.format(PLACEHOLDER, \"YYYY\")"
+                        "    else"
+                        "        due_year = year"
                         "    end"
                         "    if month == \"\" then"
                         "        month1 = string.format(PLACEHOLDER, \"M\")"
@@ -1135,16 +1116,8 @@ and completed, even if some of them weren't managed from within Action!"
                         "        day1 = string.sub(day, 1, 1)"
                         "        day2 = string.sub(day, 2, 2)"
                         "    end"
-                        "    tex.print(string.format([[%s&\\centering\\textcolor{backgray}{\\sps%s\\sps}&\\textcolor{backgray}{%s}&\\centering{}%s&%s&\\phantom{|}\\todoyear\\phantom{|}&\\centering{}%s&\\centering{}%s&\\centering{}%s&\\centering{}%s&%s\\\\\\hline]],"
-                        "        number, completed_entry, priority_entry, tag, task, month1, month2, day1, day2, notes))"
-                        "end"
-                        "function todonumberformat(number_s, empty)"
-                        "    if empty == \"1\" or number_s == \"\" then"
-                        "        tex.print([[\\color{white}00]])"
-                        "    else"
-                        "        number = number_s"
-                        "        tex.print(string.format([[\\color{ngray}%s]], number))"
-                        "    end"
+                        "    tex.print(string.format([[%s&\\centering\\textcolor{backgray}{\\sps%s\\sps}&\\textcolor{backgray}{%s}&\\centering{}%s&%s&\\phantom{|}%s\\phantom{|}&\\centering{}%s&\\centering{}%s&\\centering{}%s&%s\\\\\\hline]],"
+                        "        number, completed_entry, priority_entry, time, task, due_year, month1, month2, day1, day2))"
                         "end"))))
            lua-file)
          t)
