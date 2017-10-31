@@ -86,6 +86,21 @@
   '((:year 4) #\- (:month 2) #\- (:day 2) #\Space
     (:hour 2) #\: (:min 2)))
 
+;; Set typography and layout defaults
+(defparameter +action-description-character-width+ 68
+  "The (average) number of characters an action description can have to fit in
+one line, beyond which it has to break to a new line.
+
+This is highly typeface-dependent, with more characters fitting per line with a
+narrower (condensed) typeface, and fewer with a wider typeface.")
+(defparameter +action-lines-per-page+ 30
+  "The number of 'lines' of actions on a planner page. An empty plan should have
+this number of lines, and therefore, actions. Once action descriptions are printed,
+some will overflow the column width and start a new line.
+
+Thus, the number of action lines refers to the actual printed lines, not the
+actual number of possible actions.")
+
 (defun set-data-directory (&key parent-dir
                              (data-dir "action" data-dir-supplied-p))
   ""
@@ -902,7 +917,8 @@ and completed, even if some of them weren't managed from within Action!"
                  "\\def \\actionprint {"
                  (format nil "~{~{\\trd{~a}{0}{~d}{~a}{~a}{~a}{~a}{~a}{}~%~}~}"
                          (cadr (format-action-list-for-report)))))
-        (dotimes (i (- 30 (car (format-action-list-for-report))))
+        (dotimes (i (- +action-lines-per-page+
+                       (car (format-action-list-for-report))))
           (format file "\\trd{}{0}{}{}{}{}{}{}{}~%"))
         (format file "~{~a~%~}"
                 '("\\arrayrulecolor{black}"
@@ -914,7 +930,8 @@ and completed, even if some of them weren't managed from within Action!"
   (flet ((count-action-desc-lines (action-list)
            (apply #'+ 
                   (mapcar 
-                   #'(lambda (i) (ceiling (/ (length (nth 3 i)) 70)))
+                   #'(lambda (i) (ceiling (/ (length (nth 3 i))
+                                             +action-description-character-width+)))
                    action-list))))
     (let ((formatted-action-list
             (mapcar #'(lambda (action)
@@ -1018,7 +1035,7 @@ and completed, even if some of them weren't managed from within Action!"
                         "\\usepackage{color}"
                         "\\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}"
                         "\\usepackage{setspace}"
-                        "\\linespread{1.50}" ; Reduce linespacing from double
+                        "%\\linespread{1.50}" ; Reduce linespacing from double
                         "\\usepackage[parfill]{parskip}"
                         "\\setlength{\\parskip}{\\smallskipamount}"
                         "\\setlength{\\parindent}{0pt}"
@@ -1051,8 +1068,10 @@ and completed, even if some of them weren't managed from within Action!"
                         "{\\subheadfont\\fontsize{16pt}{12pt}\\selectfont ACTION LIST\\par}"
                         "\\vspace{0.15em}"
                         "\\thispagestyle{empty}"
+                        "\\renewcommand{\\arraystretch}{1.5}"
                         "\\begin{tabular}{@{}p{1.5em}@{} @{}c@{} @{}c@{} @{}p{3em}@{} p{\\mainfontsize} @{}c@{} @{}p{1em}@{} @{}p{1em}@{}  @{}p{1em}@{} @{}p{1em}@{}}"
                         "\\# & \\centering C & \\centering Priority & \\centering Time & Task &\\multicolumn{5}{l}{Due Date}"
+                        "\\vspace{0.2em}"
                         "\\\\\\hline \\arrayrulecolor{tabgray}"
                         "\\actionprint"
                         "\\end{tabular}"
