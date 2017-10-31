@@ -259,7 +259,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Define main action verbs
-(defun add-action (description &key (priority "") (time-estimated 0))
+(defun add-action (description &key (priority "") (time-estimated ""))
   (let ((timestamp (format-timestring 'NIL (now)))
         (uuid (intern (format nil "~s" (make-v4-uuid)))))
     (and
@@ -920,7 +920,8 @@ and completed, even if some of them weren't managed from within Action!"
             (mapcar #'(lambda (action)
                         (get-action-columns
                          (calculate-action-information action)
-                         'short-id 'priority 'due-days 'description 'due-on-year
+                         'short-id 'priority 'time-estimated
+                         'description 'due-on-year
                          'due-on-month 'due-on-date))
                     (get-sorted-action-list
                      (get-filtered-action-list
@@ -1088,8 +1089,8 @@ and completed, even if some of them weren't managed from within Action!"
                         "    else"
                         "        priority_entry = \"\\\\sps\\\\fbox{1}\\\\sps\\\\fbox{2}\\\\sps\\\\fbox{3}\\\\sps\""
                         "    end"
-                        "    if time == \"\" then"
-                        "        time = string.format(PLACEHOLDER, \"   \")"
+                        "    if time == \"0\" then"
+                        "        time = string.format(PLACEHOLDER, \"  \")"
                         "    end"
                         "    if year == \"\" then"
                         "        due_year = string.format(PLACEHOLDER, \"YYYY\")"
