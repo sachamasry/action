@@ -1035,7 +1035,6 @@ and completed, even if some of them weren't managed from within Action!"
                         "\\usepackage{color}"
                         "\\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}"
                         "\\usepackage{setspace}"
-                        "%\\linespread{1.50}" ; Reduce linespacing from double
                         "\\usepackage[parfill]{parskip}"
                         "\\setlength{\\parskip}{\\smallskipamount}"
                         "\\setlength{\\parindent}{0pt}"
