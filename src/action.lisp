@@ -922,6 +922,15 @@ and completed, even if some of them weren't managed from within Action!"
           (format file "\\trd{}{0}{}{}{}{}{}{}{}~%"))
         (format file "~{~a~%~}"
                 '("\\arrayrulecolor{black}"
+                  "}"))
+        (format file "\\def \\annotationsprint {~%")
+        (format file "~{~{~{\\tra{~a}{~a}{~a}{~a}~}~%~}~}"
+                (cadr (act::format-annotations-list-for-report)))
+        (dotimes (i (- 30 ;45
+                       (car (act::format-annotations-list-for-report))))
+          (format file "\\tra{}{}{}{}~%"))
+        (format file "~{~a~%~}"
+                '("\\arrayrulecolor{black}"
                   "}"))))
     (probe-file actions-file)))
 
@@ -949,13 +958,22 @@ and completed, even if some of them weren't managed from within Action!"
 
 (defun format-annotations-list-for-report ()
   ""
-  (labels ((get-annotated-actions ()
-           (remove-if-not
-            #'(lambda (sublist)
-                (getf sublist :annotations))
-            (get-sorted-action-list
-             (get-filtered-action-list
-              (get-action-list)))))
+  (labels ((count-note-lines (annotation-list)
+             (apply #'+ 
+                    (mapcar
+                     #'(lambda (i) 
+                         (apply #'+ 
+                                (mapcar 
+                                 #'(lambda (j) (ceiling (/ (length (nth 3 j)) 75)))
+                                 i)))
+                     annotation-list)))
+           (get-annotated-actions ()
+             (remove-if-not
+              #'(lambda (sublist)
+                  (getf sublist :annotations))
+              (get-sorted-action-list
+               (get-filtered-action-list
+                (get-action-list)))))
            (intermediate-annotations-list ()
              (mapcar 
               #'(lambda (sublist)
@@ -966,19 +984,27 @@ and completed, even if some of them weren't managed from within Action!"
            (formatted-annotations-list ()
                (mapcar 
                 #'(lambda (sublist)
-                    (list (car sublist)
-                          (mapcar #'(lambda (subsublist)
-                                      (list (getf subsublist :annotation-id)
-                                            (getf subsublist :note)
-                                            (format-timestring nil
-                                                               (parse-timestring
-                                                                (getf subsublist :created-on))
-                                                               :format '(:ordinal-day #\Space
-                                                                         :long-month #\Space
-                                                                         :year))))
-                                  (cadr sublist))))
+                    (let ((action-id (car sublist))
+                          (counter 1))
+                      (mapcar #'(lambda (subsublist)
+                                  (list (if (plusp counter)
+                                            (and (setf counter
+                                                       (1- counter))
+                                                 action-id)
+                                            "")
+                                        (getf subsublist :annotation-id)
+                                        (format-timestring nil
+                                                           (parse-timestring
+                                                            (getf subsublist :created-on))
+                                                           :format '(:ordinal-day #\Space
+                                                                     :long-month #\Space
+                                                                     :year))
+                                        (getf subsublist :note)))
+                              (cadr sublist))))
                 (intermediate-annotations-list))))
-    (formatted-annotations-list)))
+    (list
+     (count-note-lines (formatted-annotations-list))
+     (formatted-annotations-list))))
 
 (defun run-cmd (command-list &key (output NIL))
   (when (and (listp command-list)
@@ -1052,6 +1078,7 @@ and completed, even if some of them weren't managed from within Action!"
                         "% Copyright © 2013–2017, Chris Warrick."
                         "% See /LICENSE (in the distribution) for licensing information."
                         (format nil "\\def \\actionentriespath  {~a}" actions-file)
+                        "\\pagenumbering{gobble}"
                         "\\def \\monofont     {AnonymousPro}"
                         "\\input{\\actionentriespath}"
                         "\\usepackage{fontspec}"
@@ -1087,6 +1114,7 @@ and completed, even if some of them weren't managed from within Action!"
                         "\\newcommand{\\fcb}[1]{\\fcolorbox{backgray}{black}{#1}}"
                         "\\newcommand{\\trd}[8]{\\luadirect{actionrow(\\luastringN{#1}, \\luastringN{#2}, \\luastringN{#3}, \\luastringN{#4}, \\luastringN{#5}, \\luastringN{#6}, \\luastringN{#7}, \\luastringN{#8})}}"
                         "\\newcommand{\\tr}[1]{\\luadirect{actionrow(#1, \"\", \"\", \"\", \"\", \"\", \"\", \"\")}}"
+                        "\\newcommand{\\tra}[4]{\\luadirect{annotationrow(\\luastringN{#1}, \\luastringN{#2}, \\luastringN{#3}, \\luastringN{#4})}}"
                         "\\newcommand{\\nr}[1]{\\arrayrulecolor{tabgray}\\multicolumn{10}{l}{#1}\\\\\\hline}"
                         "\\newcommand{\\p}[1]{\\texttt{#1}}"
                         "\\newfontfamily\\headingdatefont[Ligatures=TeX]{NormativeLt-Regular}"
@@ -1106,6 +1134,19 @@ and completed, even if some of them weren't managed from within Action!"
                         "\\vspace{0.2em}"
                         "\\\\\\hline \\arrayrulecolor{tabgray}"
                         "\\actionprint"
+                        "\\end{tabular}"
+                        "\\newpage"
+                        "\\thispagestyle{empty}"
+                        "{\\raggedleft\\headingdatefont\\fontsize{36pt}{36pt}\\selectfont\\reportday\\par}"
+                        "{\\raggedleft\\headingthinfont\\fontsize{18pt}{24pt}\\selectfont\\reportlongweekdayname\\\\\\reportlongmonthname\\hskip0.5ex\\reportyear\\par}"
+                        "\\vspace{2em}"
+                        "{\\subheadfont\\fontsize{16pt}{12pt}\\selectfont DAILY NOTES\\par}"
+                        "\\vspace{0.15em}"
+                        "\\begin{tabular}{@{}p{9mm}@{} @{}p{8mm}@{} @{}p{4.05cm}@{} @{}p{10.5cm}@{}}"
+                        "\\# & ID & Annotation"
+                        "\\vspace{0.2em}"
+                        "\\\\\\hline \\arrayrulecolor{tabgray}"
+                        "\\annotationsprint"
                         "\\end{tabular}"
                         "\\end{document}"))))
            tex-file)
@@ -1170,6 +1211,10 @@ and completed, even if some of them weren't managed from within Action!"
                         "    end"
                         "    tex.print(string.format([[%s&\\centering\\textcolor{backgray}{\\sps%s\\sps}&\\textcolor{backgray}{%s}&\\centering{}%s&%s&\\phantom{|}%s\\phantom{|}&\\centering{}%s&\\centering{}%s&\\centering{}%s&%s\\\\\\hline]],"
                         "        number, completed_entry, priority_entry, time, task, due_year, month1, month2, day1, day2))"
+                        "end"
+                        "function annotationrow(action_id, note_id, recorded_date, note)"
+                        "    tex.print(string.format([[%s&\\centering{}%s&%s&%s\\\\\\hline]],"
+                        "        action_id, note_id, recorded_date, note))"
                         "end"))))
            lua-file)
          t)
