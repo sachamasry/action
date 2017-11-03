@@ -155,6 +155,30 @@ Use 'cmd --help to get command-specific help.")
                               (rest (rest remainder)) :separator " "))
                (format t "Activity ~a updated.~%" (second remainder))))
 
+             ;; edit estimated time
+             ((and (or (string= (first remainder) "estimated-time")
+                       (string= (first remainder) "estimate"))
+                   (second remainder)
+                   (third remainder))
+              (and
+               (action:edit-action
+                (second remainder)
+                :estimated-time (cl-strings:join 
+                                 (rest (rest remainder)) :separator " "))
+               (format t "Activity ~a estimated time updated.~%" (second remainder))))
+
+             ;; edit actual time
+             ((and (or (string= (first remainder) "actual-time")
+                       (string= (first remainder) "time"))
+                   (second remainder)
+                   (third remainder))
+              (and
+               (action:edit-action
+                (second remainder)
+                :actual-time (cl-strings:join 
+                              (rest (rest remainder)) :separator " "))
+               (format t "Activity ~a actual time updated.~%" (second remainder))))
+
              ;; prepend
              ((and (or (string= (first remainder) "prepend")
                        (string= (first remainder) "pre"))

@@ -274,13 +274,13 @@ actual number of possible actions.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Define main action verbs
-(defun add-action (description &key (priority "") (time-estimated ""))
+(defun add-action (description &key (priority "") (estimated-time ""))
   (let ((timestamp (format-timestring 'NIL (now)))
         (uuid (intern (format nil "~s" (make-v4-uuid)))))
     (and
      (add-action-to-action-list
       (list :id uuid :priority priority
-            :time-estimated time-estimated :description description 
+            :estimated-time estimated-time :description description 
             :created-on timestamp))
      (shorten-id uuid 2))))
 
@@ -404,7 +404,10 @@ actual number of possible actions.")
                               today
                               (parse-timestring
                                (getf action-sublist :due)))
-                             ""))))))
+                             "")
+               :actual-time (if (getf action-sublist :actual-time)
+                                (getf action-sublist :actual-time)
+                                ""))))))
 
 (defun columns-to-keywords (column-list)
   (mapcar #'(lambda (column)
@@ -448,8 +451,8 @@ actual number of possible actions.")
 (defun cli-list-actions (&key list-completed)
   (let ((today (today)))
     (flet ((format-header ()
-             (format t "ID Pri Due Description~%")
-             (format t "-- --- --- -----------~%"))
+             (format t "ID Pri Est    Due Description~%")
+             (format t "-- --- ------ --- -----------~%"))
            (format-action-list (&key list-completed)
              (if list-completed
                  (mapcar #'(lambda (action)
@@ -459,13 +462,13 @@ actual number of possible actions.")
                  (mapcar #'(lambda (action)
                              (get-action-columns
                               (calculate-action-information action)
-                              'short-id 'priority 'due-days 'description))
+                              'short-id 'priority 'estimated-time 'due-days 'description))
                          (get-sorted-action-list
                           (get-filtered-action-list
                            (get-action-list)))))))
       (progn
         (format-header)
-        (format t "~:{~&~2A ~3a ~3a ~A~}"
+        (format t "~:{~&~2A ~3a ~6a ~3a ~A~}"
                 (format-action-list :list-completed list-completed))
         (terpri)))))
 
@@ -481,6 +484,9 @@ actual number of possible actions.")
                  matching-action
                  '(("Short Id" . short-id) ("UUID" . id)
                    ("Description"  . description)
+                   ("Priority" . priority)
+                   ("Estimated time" . estimated-time)
+                   ("Actual time" . actual-time)
                    ("Created on" . created-on)
                    ("Action age" . action-age)
                    ("Wait until" . wait-until) ("Days to wait" . wait-days)
@@ -591,7 +597,7 @@ actual number of possible actions.")
         id))))
 
 (defun edit-action (id &key description merge-with-description
-                      priority time-estimated due wait)
+                      priority estimated-time actual-time due wait)
   (when id
     (let ((canonical-id (string-upcase id)))
       (when-let ((matching-action (get-action-by-id canonical-id)))
@@ -610,8 +616,14 @@ actual number of possible actions.")
                   (t (setf (getf updated-action :description) description))))
           (when priority
             (setf (getf updated-action :priority) priority))
-          (when time-estimated
-            (setf (getf updated-action :time-estimated) time-estimated))
+          (when estimated-time
+            (setf (getf updated-action :estimated-time) estimated-time))
+          (when actual-time
+            (if (getf updated-action :actual-time)
+                (setf (getf updated-action :actual-time) actual-time)
+                (setf updated-action
+                      (append updated-action (list :actual-time
+                                                   actual-time)))))
           (when (and due (parse-timestring due :fail-on-error NIL))
             (if (getf updated-action :due)
                 (setf (getf updated-action :due) due)
@@ -665,7 +677,7 @@ actual number of possible actions.")
          (remove-action canonical-id))
         canonical-id))))
 
-(defun log-action (description &key (log-date NIL) (priority "") (time-estimated 0))
+(defun log-action (description &key (log-date NIL) (priority "") (estimated-time 0))
   "Log action which is already completed, without creating it first,
 then completing it. The purpose is to keep a log of actions undertaken
 and completed, even if some of them weren't managed from within Action!"
@@ -681,7 +693,7 @@ and completed, even if some of them weren't managed from within Action!"
              (intern (format nil "~s" (make-v4-uuid))))
            (completed-action
              (list :id uuid :priority priority
-                   :time-estimated time-estimated :description description 
+                   :estimated-time estimated-time :description description 
                    :created-on timestamp
                    :status "logged completed"
                    :completed-on timestamp)))
@@ -776,10 +788,13 @@ and completed, even if some of them weren't managed from within Action!"
            (time-logged action-list)))))
 
 (defun format-time-duration (duration)
+  (let* ((hours (floor (/ duration (* 60 60))))
+         (minutes (floor (/ (rem duration (* 60 60)) 60)))
+         (seconds (floor (rem (rem duration (* 60 60)) 60))))
   (list
-   :hours (floor (/ duration (* 60 60)))
-   :minutes (floor (/ duration 60))
-   :seconds (rem duration 60)))
+   :hours hours
+   :minutes minutes
+   :seconds seconds)))
 
 (defun log-action-time (id entry-type)
   (when (and (stringp id) (not (zerop (length id)))
@@ -946,7 +961,7 @@ and completed, even if some of them weren't managed from within Action!"
             (mapcar #'(lambda (action)
                         (get-action-columns
                          (calculate-action-information action)
-                         'short-id 'priority 'time-estimated
+                         'short-id 'priority 'estimated-time
                          'description 'due-on-year
                          'due-on-month 'due-on-date))
                     (get-sorted-action-list
@@ -1129,7 +1144,7 @@ and completed, even if some of them weren't managed from within Action!"
                         "\\vspace{0.15em}"
                         "\\thispagestyle{empty}"
                         "\\renewcommand{\\arraystretch}{1.5}"
-                        "\\begin{tabular}{@{}p{1.5em}@{} @{}c@{} @{}c@{} @{}p{3em}@{} p{\\mainfontsize} @{}c@{} @{}p{1em}@{} @{}p{1em}@{}  @{}p{1em}@{} @{}p{1em}@{}}"
+                        "\\begin{tabular}{@{}p{1.5em}@{} @{}c@{} @{}c@{} @{}p{4.3em}@{} p{\\mainfontsize} @{}c@{} @{}p{1em}@{} @{}p{1em}@{}  @{}p{1em}@{} @{}p{1em}@{}}"
                         "\\# & \\centering C & \\centering Priority & \\centering Time & Task &\\multicolumn{5}{l}{Due Date}"
                         "\\vspace{0.2em}"
                         "\\\\\\hline \\arrayrulecolor{tabgray}"
@@ -1140,7 +1155,7 @@ and completed, even if some of them weren't managed from within Action!"
                         "{\\raggedleft\\headingdatefont\\fontsize{36pt}{36pt}\\selectfont\\reportday\\par}"
                         "{\\raggedleft\\headingthinfont\\fontsize{18pt}{24pt}\\selectfont\\reportlongweekdayname\\\\\\reportlongmonthname\\hskip0.5ex\\reportyear\\par}"
                         "\\vspace{2em}"
-                        "{\\subheadfont\\fontsize{16pt}{12pt}\\selectfont DAILY NOTES\\par}"
+                        "{{\\subheadfont\\fontsize{16pt}{12pt}\\selectfont DAILY NOTES}\\hfill{}Week \\reportweeknum\\par}"
                         "\\vspace{0.15em}"
                         "\\begin{tabular}{@{}p{9mm}@{} @{}p{8mm}@{} @{}p{4.05cm}@{} @{}p{10.5cm}@{}}"
                         "\\# & ID & Annotation"
