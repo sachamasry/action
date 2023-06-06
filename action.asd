@@ -22,6 +22,9 @@
                :cl-strings
                :local-time
                :uuid
+               :dexador
+               :jonathan
+               :ubiquitous
                ;:cl-ppcre                ; for regular expression editing
                ;:ratify                  ; for specialised input parsing
                                         ; and verification
@@ -31,7 +34,8 @@
                 ((:file "filesystem-interface")
                                         ;(:file "string-manipulation")
                  (:file "persistence")
-                 (:file "action"))))
+                 (:file "action")
+                 (:file "taiga-integration"))))
   :description "Action! is a simple To-Do list manager"
   :long-description
   #.(with-open-file (stream (merge-pathnames

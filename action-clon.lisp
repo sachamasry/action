@@ -151,9 +151,22 @@ Use 'cmd --help to get command-specific help.")
               (and
                (action:edit-action
                 (second remainder)
+                :subject (cl-strings:join 
+                              (rest (rest remainder)) :separator " "))
+               (format t "Activity ~a subject updated.~%" (second remainder))))
+
+             ;; edit action description
+             ((and (or (string= (first remainder) "desc")
+                       (string= (first remainder) "description"))
+                   (second remainder)
+                   (third remainder))
+              (and
+               (action:edit-action
+                (second remainder)
                 :description (cl-strings:join 
                               (rest (rest remainder)) :separator " "))
-               (format t "Activity ~a updated.~%" (second remainder))))
+               (format t "Activity ~a description updated.~%" (second remainder))))
+
 
              ;; edit estimated time
              ((and (or (string= (first remainder) "estimated-time")
@@ -292,6 +305,25 @@ Use 'cmd --help to get command-specific help.")
                  (string-upcase (second remainder))
                  :keyword))
                (format t "Backup complete.~%")))
+
+             ;;; taiga-integration
+             ;; taiga integration active?
+             ((and
+               (string= (first remainder) "taiga")
+               (string= (second remainder) "integration"))
+              (and
+               (if (action/taiga-integration:taiga-integration-active-p)
+                   (format t "Taiga integration enabled.~%")
+                   (format t "Taiga integration disabled.~%"))))
+
+             ;; taiga status
+             ((and
+               (string= (first remainder) "taiga")
+               (string= (second remainder) "test"))
+              (and
+               (action/taiga-integration:taiga-bridge-test)
+               (format t "Taiga bridge successful.~%")))
+
 
              ;; If there is a remainder, and if the first item is
              ;; "add" then create new activity using the rest of the

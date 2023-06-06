@@ -27,6 +27,7 @@
   (:import-from :action/filesystem-interface
                 #:rm-file)
   (:export
+   #:+action-data-directory+
    #:system-version
    #:cli-list-actions
    #:cli-action-info
@@ -73,6 +74,7 @@
   (mapcar #'(lambda (file) (ensure-file-exists file))
           files))
 
+(defparameter +actions-configuration-file+ ())
 (defparameter +actions-data-file+ ())
 (defparameter +completed-actions-data-file+ ())
 (defparameter +activity-log+ ())
@@ -118,12 +120,20 @@ actual number of possible actions.")
               (uiop/configuration:xdg-data-home)
               data-dir))))
   (and
+   (set-actions-configuration-file +action-data-directory+)
    (set-actions-data-file +action-data-directory+)
    (set-completed-actions-data-file +action-data-directory+)
    (set-activity-log-data-file +action-data-directory+)
    (ensure-files-exist +actions-data-file+
                        +completed-actions-data-file+
                        +activity-log+)))
+
+(defun set-actions-configuration-file (data-dir)
+  (ubiquitous:restore
+   (ubiquitous:designator-pathname
+    (setf +actions-configuration-file+
+          (merge-pathnames data-dir "action.conf"))
+    :lisp)))
 
 ;(merge-pathnames +action-data-directory+ "actions.data"))
 (defun set-actions-data-file (data-dir)
@@ -274,13 +284,14 @@ actual number of possible actions.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Define main action verbs
-(defun add-action (description &key (priority "") (estimated-time ""))
+(defun add-action (subject &key (description "") (priority "") (estimated-time ""))
   (let ((timestamp (format-timestring 'NIL (now)))
         (uuid (intern (format nil "~s" (make-v4-uuid)))))
     (and
      (add-action-to-action-list
       (list :id uuid :priority priority
-            :estimated-time estimated-time :description description 
+            :estimated-time estimated-time
+            :subject subject :description description
             :created-on timestamp))
      (shorten-id uuid 2))))
 
@@ -451,18 +462,18 @@ actual number of possible actions.")
 (defun cli-list-actions (&key list-completed)
   (let ((today (today)))
     (flet ((format-header ()
-             (format t "ID Pri Est    Due Description~%")
+             (format t "ID Pri Est    Due Subject~%")
              (format t "-- --- ------ --- -----------~%"))
            (format-action-list (&key list-completed)
              (if list-completed
                  (mapcar #'(lambda (action)
                              (get-action-columns action
-                                                 'id 'priority 'due 'description))
+                                                 'id 'priority 'due 'subject))
                          (get-completed-actions-list))
                  (mapcar #'(lambda (action)
                              (get-action-columns
                               (calculate-action-information action)
-                              'short-id 'priority 'estimated-time 'due-days 'description))
+                              'short-id 'priority 'estimated-time 'due-days 'subject))
                          (get-sorted-action-list
                           (get-filtered-action-list
                            (get-action-list)))))))
@@ -483,7 +494,7 @@ actual number of possible actions.")
                 (get-action-columns-and-headings
                  matching-action
                  '(("Short Id" . short-id) ("UUID" . id)
-                   ("Description"  . description)
+                   ("Subject" . subject)
                    ("Priority" . priority)
                    ("Estimated time" . estimated-time)
                    ("Actual time" . actual-time)
@@ -493,6 +504,11 @@ actual number of possible actions.")
                    ("Due" . due-on) ("Due in (days)" . due-days)
                    ("Last modified on" . last-modified-on)
                    ("Modified (days ago)" . last-modification-age))))
+        (when-let (description
+                   (getf matching-action :description))
+          (when (and (stringp description)
+                     (plusp (length description)))
+            (format t "Description~%===========~%~%~a~%~%" description)))
         (when-let ((annotations (getf matching-action :annotations)))
           (format t "Annotations~%")
           (format t "===========~%~%")
@@ -596,24 +612,26 @@ actual number of possible actions.")
          (rm-file snapshot-file))
         id))))
 
-(defun edit-action (id &key description merge-with-description
+(defun edit-action (id &key subject merge-with-subject description 
                       priority estimated-time actual-time due wait)
   (when id
     (let ((canonical-id (string-upcase id)))
       (when-let ((matching-action (get-action-by-id canonical-id)))
         (let ((updated-action (copy-list matching-action)))
-          (when (and description (stringp description))
-            (cond ((eq merge-with-description :prepend)
-                   (setf (getf updated-action :description)
+          (when (and subject (stringp subject))
+            (cond ((eq merge-with-subject :prepend)
+                   (setf (getf updated-action :subject)
                          (concatenate 'string
-                                      description " "
-                                      (getf updated-action :description))))
-                  ((eq merge-with-description :append)
-                   (setf (getf updated-action :description)
+                                      subject " "
+                                      (getf updated-action :subject))))
+                  ((eq merge-with-subject :append)
+                   (setf (getf updated-action :subject)
                          (concatenate 'string
-                                      (getf updated-action :description)
-                                      " " description)))
-                  (t (setf (getf updated-action :description) description))))
+                                      (getf updated-action :subject)
+                                      " " subject)))
+                  (t (setf (getf updated-action :subject) subject))))
+          (when description
+            (setf (getf updated-action :description) description))
           (when priority
             (setf (getf updated-action :priority) priority))
           (when estimated-time
@@ -658,15 +676,15 @@ actual number of possible actions.")
   (when (and id
              (plusp (length text)))
     (let ((canonical-id (string-upcase id)))
-      (edit-action canonical-id :description text
-                                :merge-with-description :prepend))))
+      (edit-action canonical-id :subject text
+                                :merge-with-subject :prepend))))
 
 (defun append-to-action (id text)
   (when (and id
              (plusp (length text)))
     (let ((canonical-id (string-upcase id)))
-      (edit-action canonical-id :description text
-                                :merge-with-description :append))))
+      (edit-action canonical-id :subject text
+                                :merge-with-subject :append))))
 
 (defun complete-action (id)
   (when id
@@ -677,7 +695,7 @@ actual number of possible actions.")
          (remove-action canonical-id))
         canonical-id))))
 
-(defun log-action (description &key (log-date NIL) (priority "") (estimated-time 0))
+(defun log-action (subject &key (description "")  (log-date NIL) (priority "") (estimated-time 0))
   "Log action which is already completed, without creating it first,
 then completing it. The purpose is to keep a log of actions undertaken
 and completed, even if some of them weren't managed from within Action!"
@@ -693,7 +711,8 @@ and completed, even if some of them weren't managed from within Action!"
              (intern (format nil "~s" (make-v4-uuid))))
            (completed-action
              (list :id uuid :priority priority
-                   :estimated-time estimated-time :description description 
+                   :estimated-time estimated-time
+                   :subject subject :description description 
                    :created-on timestamp
                    :status "logged completed"
                    :completed-on timestamp)))
@@ -940,9 +959,9 @@ and completed, even if some of them weren't managed from within Action!"
                   "}"))
         (format file "\\def \\annotationsprint {~%")
         (format file "~{~{~{\\tra{~a}{~a}{~a}{~a}~}~%~}~}"
-                (cadr (act::format-annotations-list-for-report)))
+                (cadr (format-annotations-list-for-report)))
         (dotimes (i (- 30 ;45
-                       (car (act::format-annotations-list-for-report))))
+                       (car (format-annotations-list-for-report))))
           (format file "\\tra{}{}{}{}~%"))
         (format file "~{~a~%~}"
                 '("\\arrayrulecolor{black}"
@@ -962,7 +981,7 @@ and completed, even if some of them weren't managed from within Action!"
                         (get-action-columns
                          (calculate-action-information action)
                          'short-id 'priority 'estimated-time
-                         'description 'due-on-year
+                         'subject 'due-on-year
                          'due-on-month 'due-on-date))
                     (get-sorted-action-list
                      (get-filtered-action-list
