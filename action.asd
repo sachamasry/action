@@ -18,7 +18,8 @@
   :version "0.2"
   :author "Sacha El Masry"
   :license "BSD"
-  :depends-on (:alexandria
+  :depends-on (:cl-fad
+               :alexandria
                :cl-strings
                :local-time
                :uuid
