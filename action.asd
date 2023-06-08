@@ -30,13 +30,11 @@
                ;:ratify                  ; for specialised input parsing
                                         ; and verification
                )
-  :components ((:module "src"
-                :components
-                ((:file "filesystem-interface")
+  :components ((:file "filesystem-interface")
                                         ;(:file "string-manipulation")
-                 (:file "persistence")
-                 (:file "action")
-                 (:file "taiga-integration"))))
+               (:file "persistence")
+               (:file "action")
+               (:file "taiga-integration"))
   :description "Action! is a simple To-Do list manager"
   :long-description
   #.(with-open-file (stream (merge-pathnames

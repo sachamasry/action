@@ -18,7 +18,10 @@ ifeq ($(detected_OS),Windows)
 	UNINSTALL_CMD=rm $(INSTALL_DIR)/$(BIN_NAME)
 endif
 ifeq ($(detected_OS),Darwin)	# Mac OS X/macOS
-	BIN_DIR="bin/macOS/"
+	BIN_DIR="bin/macOS/$(shell sh -c 'uname -p')/$(shell sh -c 'uname -r')"
+	BUNDLE_CMD=--load config/bundle-action.lisp
+	COMPILE_CMD=--script action-clon.lisp
+	COMPILE_ENV=CC=gcc
 endif
 ifeq ($(detected_OS),Linux)
 	BIN_DIR="bin/Linux/"
@@ -88,7 +91,7 @@ bundle:
 
 copy-system:
 	@echo "---> Copying system to build"
-	cp -rf action.asd src/ $(TMP_DIR)/$(BUILD_DIR)/local-projects/ && \
+	cp -rf action.asd *.lisp $(TMP_DIR)/$(BUILD_DIR)/local-projects/ && \
 	cp action-clon.lisp $(TMP_DIR)/$(BUILD_DIR)
 
 clean:

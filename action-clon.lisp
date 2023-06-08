@@ -1,7 +1,8 @@
 (in-package :cl-user)
 
 (defpackage action/cli
-  (:use :cl))
+  (:use :cl)
+  (:shadow #:version))
 (in-package :action/cli)
 
 (require "asdf")
@@ -23,7 +24,7 @@ Use 'cmd --help to get command-specific help.")
   (group (:header "Immediate exit options:")
          (flag :short-name "h" :long-name "help"
                :description "Print this help and exit.")
-         (flag :short-name "v" :long-name "version"
+         (flag :short-name "v" :long-name "act-version"
                :description "Print version and exit.")))
 
 (defconstant +add-synopsis+
