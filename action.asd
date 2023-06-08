@@ -18,20 +18,23 @@
   :version "0.2"
   :author "Sacha El Masry"
   :license "BSD"
-  :depends-on (:alexandria
+  :depends-on (:cl-fad
+               :alexandria
                :cl-strings
                :local-time
                :uuid
+               :dexador
+               :jonathan
+               :ubiquitous
                ;:cl-ppcre                ; for regular expression editing
                ;:ratify                  ; for specialised input parsing
                                         ; and verification
                )
-  :components ((:module "src"
-                :components
-                ((:file "filesystem-interface")
+  :components ((:file "filesystem-interface")
                                         ;(:file "string-manipulation")
-                 (:file "persistence")
-                 (:file "action"))))
+               (:file "persistence")
+               (:file "action")
+               (:file "taiga-integration"))
   :description "Action! is a simple To-Do list manager"
   :long-description
   #.(with-open-file (stream (merge-pathnames
